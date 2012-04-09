@@ -3,6 +3,7 @@ package com.piusvelte.remoteauthclient;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
@@ -10,6 +11,7 @@ import java.util.UUID;
 
 import android.app.AlertDialog;
 import android.app.ListActivity;
+import android.app.PendingIntent;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
@@ -19,7 +21,15 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.nfc.FormatException;
+import android.nfc.NdefMessage;
+import android.nfc.NdefRecord;
+import android.nfc.NfcAdapter;
+import android.nfc.Tag;
+import android.nfc.tech.Ndef;
+import android.nfc.tech.NdefFormatable;
 import android.os.Bundle;
+import android.os.Parcelable;
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.Menu;
@@ -55,6 +65,10 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener 
 	// Unique UUID for this application
 	private static final UUID sRemoteAuthServerUUID = UUID.fromString("963b082a-9f01-433d-8478-c26b16ea5da1");
 
+	// NFC
+	private NfcAdapter mNfcAdapter = null;
+	private boolean mInWriteMode = false;
+
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -74,6 +88,8 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener 
 		mBtn_write.setOnClickListener(this);
 		//BT
 		mBtAdapter = BluetoothAdapter.getDefaultAdapter();
+		//NFC
+		mNfcAdapter = NfcAdapter.getDefaultAdapter(getApplicationContext());
 	}
 
 	@Override 
@@ -90,6 +106,41 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener 
 		registerReceiver(mReceiver, filter);
 		filter = new IntentFilter(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
 		registerReceiver(mReceiver, filter);
+		// handle NFC intents
+		Intent intent = getIntent();
+		if (intent != null) {
+			String action = intent.getAction();
+			Log.d(TAG,"action: " + action);
+			if (action.equals(NfcAdapter.ACTION_NDEF_DISCOVERED)) {
+				Parcelable[] rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
+				NdefMessage[] msgs;
+				if (rawMsgs != null) {
+					msgs = new NdefMessage[rawMsgs.length];
+					for (int i = 0; i < rawMsgs.length; i++) {
+						msgs[i] = (NdefMessage) rawMsgs[i];
+					}
+				} else {
+					// Unknown tag type
+					byte[] empty = new byte[] {};
+					NdefRecord record = new NdefRecord(NdefRecord.TNF_UNKNOWN, empty, empty, empty);
+					NdefMessage msg = new NdefMessage(new NdefRecord[] {record});
+					msgs = new NdefMessage[] {msg};
+				}
+				for (NdefMessage msg : msgs) {
+					NdefRecord[] records = msg.getRecords();
+					for (NdefRecord record : records) {
+						Log.d(TAG,"record payload: " + new String(record.getPayload()));
+					}
+				}
+			} else if (mInWriteMode && action.equals(NfcAdapter.ACTION_TAG_DISCOVERED)) {
+				Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+				if ((tag != null) && (mFld_device.getText().length() > 0)) {
+					write(tag);
+					mNfcAdapter.disableForegroundDispatch(this);
+					mInWriteMode=false;
+				}
+			}
+		}
 		SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
 		Set<String> devices = sp.getStringSet(getString(R.string.key_devices), null);
 		if (devices != null) {
@@ -210,7 +261,17 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener 
 			mFld_address.setText("");
 		} else if (v.equals(mBtn_write)) {
 			// write the device to a tag
-			//TODO
+			IntentFilter discovery = new IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED);
+			IntentFilter[] tagFilters = new IntentFilter[] {discovery};
+			Intent i = new Intent(this, getClass());
+			PendingIntent pi = PendingIntent.getActivity(this, 0, i, 0);
+			mInWriteMode = true;
+			mNfcAdapter.enableForegroundDispatch(this, pi, tagFilters, null);
+			mDialog = new AlertDialog.Builder(this)
+			.setTitle("Touch tag")
+			.setCancelable(true)
+			.create();
+			mDialog.show();
 		} else {
 			// these action require bluetooth
 			if (!mBtAdapter.isEnabled()) {
@@ -522,8 +583,8 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener 
 				try {
 					byte[] buffer = new byte[1024];
 					int readBytes = mmInStream.read(buffer);
-	                // construct a string from the valid bytes in the buffer
-	                String message = new String(buffer, 0, readBytes);
+					// construct a string from the valid bytes in the buffer
+					String message = new String(buffer, 0, readBytes);
 					Log.d(TAG,"message: "+message);
 				} catch (IOException e) {
 					Log.e(TAG, "disconnected", e);
@@ -550,6 +611,44 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener 
 				mmSocket.close();
 			} catch (IOException e) {
 				Log.e(TAG, "close() of connect socket failed", e);
+			}
+		}
+	}
+
+	private void write(Tag tag) {
+		byte[] mimeBytes = "application/com.piusvelte.remoteauth".getBytes(Charset.forName("US-ASCII"));
+		// write the device and address
+		NdefRecord mimeRecord = new NdefRecord(NdefRecord.TNF_MIME_MEDIA, mimeBytes, new byte[0], (mFld_device.getText().toString() + " " + mFld_address.getText().toString()).getBytes());
+		NdefMessage message = new NdefMessage(new NdefRecord[]{mimeRecord, NdefRecord.createApplicationRecord("com.piusvelte.remoteauthclient")});
+
+		// Get an instance of Ndef for the tag.
+		Ndef ndef = Ndef.get(tag);
+		if (ndef != null) {
+			try {
+				ndef.connect();
+				if (ndef.isWritable()) {
+					ndef.writeNdefMessage(message);
+				}
+				ndef.close();
+				Toast.makeText(getApplicationContext(), "tag written", Toast.LENGTH_LONG);
+			} catch (IOException e) {
+				Log.d(TAG, e.toString());
+			} catch (FormatException e) {
+				Log.d(TAG, e.toString());
+			}
+		} else {
+			NdefFormatable format = NdefFormatable.get(tag);
+			if (format != null) {
+				try {
+					format.connect();
+					format.format(message);
+					format.close();
+					Toast.makeText(getApplicationContext(), "tag written", Toast.LENGTH_LONG);
+				} catch (IOException e) {
+					Log.d(TAG, e.toString());
+				} catch (FormatException e) {
+					Log.d(TAG, e.toString());
+				}
 			}
 		}
 	}

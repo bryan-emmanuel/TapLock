@@ -117,6 +117,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 	@Override
 	protected void onResume() {
 		super.onResume();
+		Log.d(TAG, "bind service");
 		bindService(new Intent(this, RemoteAuthClientService.class), this, BIND_AUTO_CREATE);
 		SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
 		Set<String> devices = sp.getStringSet(getString(R.string.key_devices), null);
@@ -143,6 +144,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 					Log.d(TAG,"key: " + iter.next());
 				}
 			}
+			Log.d(TAG, "mInWriteMode: " + mInWriteMode);
 			if (mInWriteMode && action.equals(NfcAdapter.ACTION_TAG_DISCOVERED)) {
 				Log.d(TAG,"attempt to write tag");
 				Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
@@ -151,7 +153,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 					mNfcAdapter.disableForegroundDispatch(this);
 					mInWriteMode=false;
 				}
-			} else if (intent.hasExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)) {
+			} else if (action.equals(NfcAdapter.ACTION_NDEF_DISCOVERED) && intent.hasExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)) {
 				Parcelable[] rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
 				NdefMessage message;
 				if (rawMsgs != null) {
@@ -178,18 +180,20 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 							String textEncoding = ((payload[0] & 0200) == 0) ? "UTF-8" : "UTF-16";
 							int languageCodeLength = payload[0] & 0077;
 							String taggedDevice = new String(payload, languageCodeLength + 1, payload.length - languageCodeLength - 1, textEncoding);
+							Log.d(TAG, "taggedDevice: " + taggedDevice);
 							boolean exists = false;
-							for (String device : mDevices) {
-								if (device.equals(taggedDevice)) {
-									exists = true;
-									break;
+							if (devices != null) {
+								for (String device : mDevices) {
+									if (device.equals(taggedDevice)) {
+										exists = true;
+										break;
+									}
 								}
 							}
 							if (exists) {
-								mDevice = taggedDevice;
 								if (mServiceInterface != null) {
 									try {
-										mServiceInterface.write(mDevice.substring(mDevice.length() - 17), "toggle");
+										mServiceInterface.write(taggedDevice.substring(taggedDevice.length() - 17), "toggle");
 									} catch (RemoteException e) {
 										Log.e(TAG, e.toString());
 									}
@@ -209,6 +213,13 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 	@Override
 	protected void onPause() {
 		super.onPause();
+		if (mServiceInterface != null) {
+			try {
+				mServiceInterface.stop();
+			} catch (RemoteException e) {
+				Log.e(TAG, e.toString());
+			}
+		}
 		mDevice = null;
 		mInWriteMode = false;
 		mNfcAdapter.disableForegroundDispatch(this);

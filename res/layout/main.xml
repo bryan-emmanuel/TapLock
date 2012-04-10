@@ -4,82 +4,24 @@
     android:layout_height="fill_parent"
     android:orientation="vertical" >
 
-    <TextView
-        android:id="@+id/fld_device"
+    <Button
+        android:id="@+id/btn_add"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentTop="true"
-        android:hint="@string/fld_device" />
-
-    <TextView
-        android:id="@+id/fld_address"
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/fld_device"
-        android:hint="@string/fld_address" />
-
-    <LinearLayout
-        android:id="@+id/btns_save"
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/fld_address"
-        android:orientation="horizontal" >
-
-        <Button
-            android:id="@+id/btn_add"
-            android:layout_width="fill_parent"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/btn_add" />
-
-        <Button
-            android:id="@+id/btn_save"
-            android:layout_width="fill_parent"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/btn_save" />
-
-        <Button
-            android:id="@+id/btn_write"
-            android:layout_width="fill_parent"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/btn_write" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/btns_state"
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/btns_save"
-        android:orientation="horizontal" >
-
-        <Button
-            android:id="@+id/btn_lock"
-            android:layout_width="fill_parent"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/btn_lock" />
-
-        <Button
-            android:id="@+id/btn_unlock"
-            android:layout_width="fill_parent"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/btn_unlock" />
-    </LinearLayout>
+        android:text="@string/btn_add" />
 
     <ListView
         android:id="@android:id/list"
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
-        android:layout_below="@id/btns_state" />
+        android:layout_below="@id/btn_add" />
 
     <TextView
         android:id="@android:id/empty"
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
-        android:layout_below="@id/btns_state"
+        android:layout_below="@id/btn_add"
         android:text="@string/no_devices" />
 
 </RelativeLayout>

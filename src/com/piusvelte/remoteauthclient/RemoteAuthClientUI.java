@@ -1,25 +1,22 @@
 package com.piusvelte.remoteauthclient;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.charset.Charset;
+import java.io.UnsupportedEncodingException;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.UUID;
 
 import android.app.AlertDialog;
 import android.app.ListActivity;
 import android.app.PendingIntent;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothSocket;
-import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.nfc.FormatException;
 import android.nfc.NdefMessage;
@@ -29,7 +26,9 @@ import android.nfc.Tag;
 import android.nfc.tech.Ndef;
 import android.nfc.tech.NdefFormatable;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.os.Parcelable;
+import android.os.RemoteException;
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.Menu;
@@ -41,53 +40,71 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.AdapterView.AdapterContextMenuInfo;
-import android.widget.TextView;
 import android.widget.Toast;
 
-public class RemoteAuthClientUI extends ListActivity implements OnClickListener {
+public class RemoteAuthClientUI extends ListActivity implements OnClickListener, ServiceConnection {
 	private static final String TAG = "RemoteAuthClientUI";
-	private Button mBtn_lock;
-	private Button mBtn_unlock;
 	private Button mBtn_add;
-	private Button mBtn_save;
-	private Button mBtn_write;
 	private AlertDialog mDialog;
-	private TextView mFld_device;
-	private TextView mFld_address;
 	private String[] mDevices;
 	private String[] mPairedDevices;
 	private String[] mUnpairedDevices;
-	private BluetoothAdapter mBtAdapter;
-	private ConnectThread mConnectThread;
-	private ConnectedThread mConnectedThread;
+	//	private BluetoothAdapter mBtAdapter;
 	private static final int REMOVE_ID = Menu.FIRST;
-
-	// Unique UUID for this application
-	private static final UUID sRemoteAuthServerUUID = UUID.fromString("963b082a-9f01-433d-8478-c26b16ea5da1");
+	private String mDevice;
 
 	// NFC
 	private NfcAdapter mNfcAdapter = null;
 	private boolean mInWriteMode = false;
+
+	//	private boolean mDisableAfterWrite = false;
+
+	private IRemoteAuthClientService mServiceInterface;
+	private IRemoteAuthClientUI.Stub mUIInterface = new IRemoteAuthClientUI.Stub() {
+
+		@Override
+		public void setMessage(String message) throws RemoteException {
+			Log.d(TAG, message);
+			Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
+		}
+
+		@Override
+		public void setUnpairedDevice(String device) throws RemoteException {
+			// new unpaired device
+			String[] newDevices = new String[mUnpairedDevices.length + 1];
+			for (int i = 0, l = mUnpairedDevices.length; i < l; i++) {
+				newDevices[i] = mUnpairedDevices[i];
+			}
+			newDevices[mUnpairedDevices.length] = device;
+			mUnpairedDevices = newDevices;
+		}
+
+		@Override
+		public void setDiscoveryFinished() throws RemoteException {
+			if (mUnpairedDevices.length > 0) {
+				mDialog = new AlertDialog.Builder(RemoteAuthClientUI.this)
+				.setItems(mUnpairedDevices, new DialogInterface.OnClickListener() {					
+					@Override
+					public void onClick(DialogInterface dialog, int which) {
+						addNewDevice(mPairedDevices[which]);
+					}
+				})
+				.create();
+				mDialog.show();
+			} else {
+				Toast.makeText(getApplicationContext(), "no devices discovered", Toast.LENGTH_LONG).show();
+			}
+		}
+
+	};
 
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.main);
 		registerForContextMenu(getListView());
-		mFld_device = ((TextView)findViewById(R.id.fld_device));
-		mFld_address = ((TextView)findViewById(R.id.fld_address));
-		mBtn_lock = ((Button)findViewById(R.id.btn_lock));
-		mBtn_unlock = ((Button)findViewById(R.id.btn_unlock));
 		mBtn_add = ((Button)findViewById(R.id.btn_add));
-		mBtn_save = ((Button)findViewById(R.id.btn_save));
-		mBtn_write = ((Button)findViewById(R.id.btn_write));
-		mBtn_lock.setOnClickListener(this);
-		mBtn_unlock.setOnClickListener(this);
 		mBtn_add.setOnClickListener(this);
-		mBtn_save.setOnClickListener(this);
-		mBtn_write.setOnClickListener(this);
-		//BT
-		mBtAdapter = BluetoothAdapter.getDefaultAdapter();
 		//NFC
 		mNfcAdapter = NfcAdapter.getDefaultAdapter(getApplicationContext());
 	}
@@ -100,47 +117,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener 
 	@Override
 	protected void onResume() {
 		super.onResume();
-		IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
-		registerReceiver(mReceiver, filter);
-		filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-		registerReceiver(mReceiver, filter);
-		filter = new IntentFilter(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
-		registerReceiver(mReceiver, filter);
-		// handle NFC intents
-		Intent intent = getIntent();
-		if (intent != null) {
-			String action = intent.getAction();
-			Log.d(TAG,"action: " + action);
-			if (action.equals(NfcAdapter.ACTION_NDEF_DISCOVERED)) {
-				Parcelable[] rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
-				NdefMessage[] msgs;
-				if (rawMsgs != null) {
-					msgs = new NdefMessage[rawMsgs.length];
-					for (int i = 0; i < rawMsgs.length; i++) {
-						msgs[i] = (NdefMessage) rawMsgs[i];
-					}
-				} else {
-					// Unknown tag type
-					byte[] empty = new byte[] {};
-					NdefRecord record = new NdefRecord(NdefRecord.TNF_UNKNOWN, empty, empty, empty);
-					NdefMessage msg = new NdefMessage(new NdefRecord[] {record});
-					msgs = new NdefMessage[] {msg};
-				}
-				for (NdefMessage msg : msgs) {
-					NdefRecord[] records = msg.getRecords();
-					for (NdefRecord record : records) {
-						Log.d(TAG,"record payload: " + new String(record.getPayload()));
-					}
-				}
-			} else if (mInWriteMode && action.equals(NfcAdapter.ACTION_TAG_DISCOVERED)) {
-				Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
-				if ((tag != null) && (mFld_device.getText().length() > 0)) {
-					write(tag);
-					mNfcAdapter.disableForegroundDispatch(this);
-					mInWriteMode=false;
-				}
-			}
-		}
+		bindService(new Intent(this, RemoteAuthClientService.class), this, BIND_AUTO_CREATE);
 		SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
 		Set<String> devices = sp.getStringSet(getString(R.string.key_devices), null);
 		if (devices != null) {
@@ -153,17 +130,91 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener 
 		} else {
 			mDevices = new String[0];
 		}
+		// handle NFC intents
+		Intent intent = getIntent();
+		if (intent != null) {
+			String action = intent.getAction();
+			Log.d(TAG,"action: " + action);
+			Bundle extras = intent.getExtras();
+			if (extras != null) {
+				Set<String> keys = extras.keySet();
+				Iterator<String> iter = keys.iterator();
+				while (iter.hasNext()) {
+					Log.d(TAG,"key: " + iter.next());
+				}
+			}
+			if (mInWriteMode && action.equals(NfcAdapter.ACTION_TAG_DISCOVERED)) {
+				Log.d(TAG,"attempt to write tag");
+				Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+				if ((tag != null) && (mDevice != null)) {
+					write(tag);
+					mNfcAdapter.disableForegroundDispatch(this);
+					mInWriteMode=false;
+				}
+			} else if (intent.hasExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)) {
+				Parcelable[] rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
+				NdefMessage message;
+				if (rawMsgs != null) {
+					// process the first message
+					message = (NdefMessage) rawMsgs[0];
+					// process the first record
+					NdefRecord record = message.getRecords()[0];
+					if (record.getTnf() == NdefRecord.TNF_WELL_KNOWN) {
+						try {
+							byte[] payload = record.getPayload();
+							/*
+							 * payload[0] contains the "Status Byte Encodings" field, per the
+							 * NFC Forum "Text Record Type Definition" section 3.2.1.
+							 *
+							 * bit7 is the Text Encoding Field.
+							 *
+							 * if (Bit_7 == 0): The text is encoded in UTF-8 if (Bit_7 == 1):
+							 * The text is encoded in UTF16
+							 *
+							 * Bit_6 is reserved for future use and must be set to zero.
+							 *
+							 * Bits 5 to 0 are the length of the IANA language code.
+							 */
+							String textEncoding = ((payload[0] & 0200) == 0) ? "UTF-8" : "UTF-16";
+							int languageCodeLength = payload[0] & 0077;
+							String taggedDevice = new String(payload, languageCodeLength + 1, payload.length - languageCodeLength - 1, textEncoding);
+							boolean exists = false;
+							for (String device : mDevices) {
+								if (device.equals(taggedDevice)) {
+									exists = true;
+									break;
+								}
+							}
+							if (exists) {
+								mDevice = taggedDevice;
+								if (mServiceInterface != null) {
+									try {
+										mServiceInterface.write(mDevice.substring(mDevice.length() - 17), "toggle");
+									} catch (RemoteException e) {
+										Log.e(TAG, e.toString());
+									}
+								}
+							}
+						} catch (UnsupportedEncodingException e) {
+							// should never happen unless we get a malformed tag.
+							throw new IllegalArgumentException(e);
+						}
+					}
+				}
+			}
+		}
 		setListAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mDevices));
 	}
 
 	@Override
 	protected void onPause() {
 		super.onPause();
+		mDevice = null;
+		mInWriteMode = false;
+		mNfcAdapter.disableForegroundDispatch(this);
 		if ((mDialog != null) && mDialog.isShowing()) {
 			mDialog.cancel();
 		}
-		stopConnectionThreads();
-		unregisterReceiver(mReceiver);
 		// save devices
 		Set<String> devices = new HashSet<String>();
 		for (String device : mDevices) {
@@ -173,34 +224,56 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener 
 		SharedPreferences.Editor spe = sp.edit();
 		spe.putStringSet(getString(R.string.key_devices), devices);
 		spe.commit();
+		unbindService(this);
 	}
 
 	@Override
 	protected void onListItemClick(ListView list, final View view, int position, final long id) {
 		super.onListItemClick(list, view, position, id);
-		int which = (int) id;
-		// update device
-		String device = mDevices[which];
-		int i = device.length() - 17;
-		String address = device.substring(i);
-		mFld_device.setText(device.substring(0, i - 1));
-		mFld_address.setText(address);
-		// attempt to connect to the device
-		if (mBtAdapter.isEnabled()) {
-			connectDevice(address, false);
-		} else {
-			// ask to enable
-			mDialog = new AlertDialog.Builder(this)
-			.setTitle(R.string.ttl_enablebt)
-			.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
-				@Override
-				public void onClick(DialogInterface dialog, int which) {
-					mBtAdapter.enable();
+		mDialog = new AlertDialog.Builder(this)
+		.setItems(R.array.states, new DialogInterface.OnClickListener() {
+			@Override
+			public void onClick(DialogInterface dialog, int which) {
+				String state = getResources().getStringArray(R.array.states)[which];
+				mDevice = mDevices[(int) id];
+				if (state.equals("tag")) {
+					// write the device to a tag
+					IntentFilter discovery = new IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED);
+					IntentFilter[] tagFilters = new IntentFilter[] {discovery};
+					Intent i = new Intent(RemoteAuthClientUI.this, getClass());
+					PendingIntent pi = PendingIntent.getActivity(RemoteAuthClientUI.this, 0, i, 0);
+					mInWriteMode = true;
+					mNfcAdapter.enableForegroundDispatch(RemoteAuthClientUI.this, pi, tagFilters, null);
+					mDialog = new AlertDialog.Builder(RemoteAuthClientUI.this)
+					.setTitle("Touch tag")
+					.setPositiveButton(android.R.string.ok, null)
+					.create();
+					mDialog.show();
+				} else if (state.equals("remove")) {
+					// remove device
+					int p = 0;
+					String[] devices = new String[mDevices.length - 1];
+					for (int i = 0, l = mDevices.length; i < l; i++) {
+						if (!mDevices[i].equals(mDevice)) {
+							devices[p++] = mDevices[i];
+						}
+					}
+					mDevices = devices;
+					setListAdapter(new ArrayAdapter<String>(RemoteAuthClientUI.this, android.R.layout.simple_list_item_1, mDevices));
+				} else {
+					// attempt to connect to the device
+					if (mServiceInterface != null) {
+						try {
+							mServiceInterface.write(mDevice.substring(mDevice.length() - 17), state);
+						} catch (RemoteException e) {
+							Log.e(TAG, e.toString());
+						}
+					}
 				}
-			})
-			.create();
-			mDialog.show();
-		}
+			}
+		})
+		.create();
+		mDialog.show();
 	}
 
 	@Override
@@ -231,395 +304,107 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener 
 
 	@Override
 	public void onClick(View v) {
-		if (v.equals(mBtn_save)) {
-			// disconnect
-			stopConnectionThreads();
-			// save the device
-			String newDevice = mFld_device.getText().toString() + " " + mFld_address.getText().toString();
-			boolean exists = false;
-			if (newDevice.length() > 0) {
-				for (String device : mDevices) {
-					if (newDevice.equals(device)) {
-						exists = true;
-					}
+		if (v.equals(mBtn_add)) {
+			// Get a set of currently paired devices
+			BluetoothAdapter btAdapter = BluetoothAdapter.getDefaultAdapter();
+			Set<BluetoothDevice> pairedDevices = btAdapter.getBondedDevices();
+			// launch dialog to select device
+			if (pairedDevices.size() > 0) {
+				mPairedDevices = new String[pairedDevices.size()];
+				int i = 0;
+				for (BluetoothDevice device : pairedDevices) {
+					mPairedDevices[i++] = device.getName() + " " + device.getAddress();
 				}
-			} else {
-				// this will prevent empty devices
-				exists = true;
-			}
-			if (!exists) {
-				// new device
-				String[] devices = new String[mDevices.length + 1];
-				for (int i = 0, l = mDevices.length; i < l; i++) {
-					devices[i] = mDevices[i];
-				}
-				devices[mDevices.length] = newDevice;
-				mDevices = devices;
-				setListAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mDevices));
-			}
-			mFld_device.setText("");
-			mFld_address.setText("");
-		} else if (v.equals(mBtn_write)) {
-			// write the device to a tag
-			IntentFilter discovery = new IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED);
-			IntentFilter[] tagFilters = new IntentFilter[] {discovery};
-			Intent i = new Intent(this, getClass());
-			PendingIntent pi = PendingIntent.getActivity(this, 0, i, 0);
-			mInWriteMode = true;
-			mNfcAdapter.enableForegroundDispatch(this, pi, tagFilters, null);
-			mDialog = new AlertDialog.Builder(this)
-			.setTitle("Touch tag")
-			.setCancelable(true)
-			.create();
-			mDialog.show();
-		} else {
-			// these action require bluetooth
-			if (!mBtAdapter.isEnabled()) {
-				// ask to enable
 				mDialog = new AlertDialog.Builder(this)
-				.setTitle(R.string.ttl_enablebt)
-				.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+				.setItems(mPairedDevices, new DialogInterface.OnClickListener() {
+
 					@Override
 					public void onClick(DialogInterface dialog, int which) {
-						mBtAdapter.enable();
+						addNewDevice(mPairedDevices[which]);
+					}
+
+				})
+				.setPositiveButton(getString(R.string.btn_scan), new DialogInterface.OnClickListener() {
+					@Override
+					public void onClick(DialogInterface dialog, int which) {
+						mUnpairedDevices = new String[0];
+						if (mServiceInterface != null) {
+							try {
+								mServiceInterface.requestDiscovery();
+							} catch (RemoteException e) {
+								Log.e(TAG, e.toString());
+							}
+						}
 					}
 				})
 				.create();
 				mDialog.show();
 			} else {
-				if (v.equals(mBtn_lock)) {
-					// lock
-					if (mConnectedThread != null) {
-						Toast.makeText(getApplicationContext(), "write: lock", Toast.LENGTH_LONG).show();
-						write("lock".getBytes());
-					}
-				} else if (v.equals(mBtn_unlock)) {
-					// unlock
-					if (mConnectedThread != null) {
-						Toast.makeText(getApplicationContext(), "write: unlock", Toast.LENGTH_LONG).show();
-						write("unlock".getBytes());
-					}
-				} else if (v.equals(mBtn_add)) {
-					// Get a set of currently paired devices
-					Set<BluetoothDevice> pairedDevices = mBtAdapter.getBondedDevices();
-					// launch dialog to select device
-					if (pairedDevices.size() > 0) {
-						mPairedDevices = new String[pairedDevices.size()];
-						int i = 0;
-						for (BluetoothDevice device : pairedDevices) {
-							mPairedDevices[i++] = device.getName() + " " + device.getAddress();
-						}
-						mDialog = new AlertDialog.Builder(this)
-						.setItems(mPairedDevices, new DialogInterface.OnClickListener() {
-
-							@Override
-							public void onClick(DialogInterface dialog, int which) {
-								// compare the paired devices to the saved devices
-								String device = mPairedDevices[which];
-								int i = device.length() - 17;
-								mFld_device.setText(device.substring(0, i - 1));
-								mFld_address.setText(device.substring(i));
-							}
-
-						})
-						.setPositiveButton(getString(R.string.btn_scan), new DialogInterface.OnClickListener() {
-							@Override
-							public void onClick(DialogInterface dialog, int which) {
-								doDiscovery();
-							}
-						})
-						.create();
-						mDialog.show();
-					} else {
-						doDiscovery();
+				mUnpairedDevices = new String[0];
+				if (mServiceInterface != null) {
+					try {
+						mServiceInterface.requestDiscovery();
+					} catch (RemoteException e) {
+						Log.e(TAG, e.toString());
 					}
 				}
 			}
 		}
 	}
 
-	// The BroadcastReceiver that listens for discovered devices and
-	// changes the title when discovery is finished
-	private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
-		@Override
-		public void onReceive(Context context, Intent intent) {
-			String action = intent.getAction();
-
-			if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
-				int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.STATE_OFF);
-				if (state == BluetoothAdapter.STATE_ON) {
-					Toast.makeText(getApplicationContext(), "bluetooth enabled", Toast.LENGTH_LONG).show();
-					String address = mFld_address.getText().toString();
-					if (!address.equals("")) {
-						// attempt to connect to the device
-						connectDevice(address, false);
-					}
-				}
-				// When discovery finds a device
-			} else if (BluetoothDevice.ACTION_FOUND.equals(action)) {
-				// Get the BluetoothDevice object from the Intent
-				BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-				// If it's already paired, skip it, because it's been listed already
-				if (device.getBondState() != BluetoothDevice.BOND_BONDED) {
-					// new unpaired device
-					String[] newDevices = new String[mUnpairedDevices.length + 1];
-					for (int i = 0, l = mUnpairedDevices.length; i < l; i++) {
-						newDevices[i] = mUnpairedDevices[i];
-					}
-					newDevices[mUnpairedDevices.length] = device.getName() + " " + device.getAddress();
-					mUnpairedDevices = newDevices;
-
-				}
-				// When discovery is finished, change the Activity title
-			} else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
-				// finished
-				if (mUnpairedDevices.length > 0) {
-					mDialog = new AlertDialog.Builder(RemoteAuthClientUI.this)
-					.setItems(mUnpairedDevices, new DialogInterface.OnClickListener() {					
-						@Override
-						public void onClick(DialogInterface dialog, int which) {
-							String device = mUnpairedDevices[which];
-							int i = device.length() - 17;
-							mFld_device.setText(device.substring(0, i - 1));
-							mFld_address.setText(device.substring(i));
-						}
-					})
-					.create();
-					mDialog.show();
-				} else {
-					Toast.makeText(getApplicationContext(), "no devices discovered", Toast.LENGTH_LONG).show();
+	private void addNewDevice(String newDevice) {
+		boolean exists = false;
+		if (newDevice.length() > 0) {
+			for (String device : mDevices) {
+				if (newDevice.equals(device)) {
+					exists = true;
 				}
 			}
+		} else {
+			// this will prevent empty devices
+			exists = true;
 		}
-	};
-
-	private void stopConnectionThreads() {
-		Log.d(TAG, "stopConnectionThreads");
-		// Cancel any thread attempting to make a connection
-		if (mConnectThread != null) {
-			mConnectThread.cancel();
-			mConnectThread = null;
-		}
-
-		// Cancel any thread currently running a connection
-		if (mConnectedThread != null) {
-			mConnectedThread.cancel();
-			mConnectedThread = null;
-		}
-	}
-
-	/**
-	 * Start device discover with the BluetoothAdapter
-	 */
-	private void doDiscovery() {
-		mUnpairedDevices = new String[0];
-		// If we're already discovering, stop it
-		if (mBtAdapter.isDiscovering()) {
-			mBtAdapter.cancelDiscovery();
-		}
-
-		Toast.makeText(getApplicationContext(), "start scan", Toast.LENGTH_LONG).show();
-		// Request discover from BluetoothAdapter
-		mBtAdapter.startDiscovery();
-	}
-
-	private void connectDevice(String address, boolean secure) {
-		Toast.makeText(getApplicationContext(), "connect: " + address, Toast.LENGTH_LONG).show();
-		// Get the BluetoothDevice object
-		BluetoothDevice device = mBtAdapter.getRemoteDevice(address);
-		// Attempt to connect to the device
-		connect(device, secure);
-	}
-
-	/**
-	 * Start the ConnectThread to initiate a connection to a remote device.
-	 * @param device  The BluetoothDevice to connect
-	 * @param secure Socket Security type - Secure (true) , Insecure (false)
-	 */
-	public synchronized void connect(BluetoothDevice device, boolean secure) {
-		// stop any existing connections
-		stopConnectionThreads();
-
-		// Start the thread to connect with the given device
-		mConnectThread = new ConnectThread(device, secure);
-		mConnectThread.start();
-	}
-
-	/**
-	 * Start the ConnectedThread to begin managing a Bluetooth connection
-	 * @param socket  The BluetoothSocket on which the connection was made
-	 * @param device  The BluetoothDevice that has been connected
-	 */
-	public synchronized void connected(BluetoothSocket socket, BluetoothDevice device, final String socketType) {
-		stopConnectionThreads();
-
-		// Start the thread to manage the connection and perform transmissions
-		mConnectedThread = new ConnectedThread(socket, socketType);
-		mConnectedThread.start();
-	}
-
-	/**
-	 * Write to the ConnectedThread in an unsynchronized manner
-	 * @param out The bytes to write
-	 * @see ConnectedThread#write(byte[])
-	 */
-	public void write(byte[] out) {
-		// Create temporary object
-		ConnectedThread r;
-		// Synchronize a copy of the ConnectedThread
-		synchronized (this) {
-			if (mConnectedThread == null) {
-				return;
+		if (!exists) {
+			// new device
+			String[] devices = new String[mDevices.length + 1];
+			for (int i = 0, l = mDevices.length; i < l; i++) {
+				devices[i] = mDevices[i];
 			}
-			r = mConnectedThread;
-		}
-		// Perform the write unsynchronized
-		r.write(out);
-	}
-
-	/**
-	 * This thread runs while attempting to make an outgoing connection
-	 * with a device. It runs straight through; the connection either
-	 * succeeds or fails.
-	 */
-	private class ConnectThread extends Thread {
-		private final BluetoothSocket mmSocket;
-		private final BluetoothDevice mmDevice;
-		private String mSocketType;
-
-		public ConnectThread(BluetoothDevice device, boolean secure) {
-			Log.d(TAG,"create ConnectThread");
-			mmDevice = device;
-			BluetoothSocket tmp = null;
-			mSocketType = secure ? "Secure" : "Insecure";
-
-			// Get a BluetoothSocket for a connection with the
-			// given BluetoothDevice
-			try {
-				if (secure) {
-					tmp = device.createRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
-				} else {
-					tmp = device.createInsecureRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
-				}
-			} catch (IOException e) {
-				Log.e(TAG, "Socket Type: " + mSocketType + "create() failed", e);
-			}
-			mmSocket = tmp;
-		}
-
-		public void run() {
-			Log.d(TAG,"start ConnectThread, SocketType: " + mSocketType);
-			setName("ConnectThread" + mSocketType);
-
-			// Always cancel discovery because it will slow down a connection
-			mBtAdapter.cancelDiscovery();
-
-			// Make a connection to the BluetoothSocket
-			try {
-				// This is a blocking call and will only return on a
-				// successful connection or an exception
-				Log.d(TAG,"ConnectThread ***connect***");
-				mmSocket.connect();
-			} catch (IOException e) {
-				// Close the socket
-				try {
-					mmSocket.close();
-				} catch (IOException e2) {
-					Log.e(TAG, "unable to close() " + mSocketType + " socket during connection failure", e2);
-				}
-				return;
-			}
-
-			// Reset the ConnectThread because we're done
-			synchronized (RemoteAuthClientUI.this) {
-				mConnectThread = null;
-			}
-
-			// Start the connected thread
-			connected(mmSocket, mmDevice, mSocketType);
-		}
-
-		public void cancel() {
-			try {
-				mmSocket.close();
-			} catch (IOException e) {
-				Log.e(TAG, "close() of connect " + mSocketType + " socket failed", e);
-			}
-		}
-	}
-
-	/**
-	 * This thread runs during a connection with a remote device.
-	 * It handles all incoming and outgoing transmissions.
-	 */
-	private class ConnectedThread extends Thread {
-		private final BluetoothSocket mmSocket;
-		private final InputStream mmInStream;
-		private final OutputStream mmOutStream;
-
-		public ConnectedThread(BluetoothSocket socket, String socketType) {
-			Log.d(TAG, "create ConnectedThread: " + socketType);
-			mmSocket = socket;
-			InputStream tmpIn = null;
-			OutputStream tmpOut = null;
-
-			// Get the BluetoothSocket input and output streams
-			try {
-				tmpIn = socket.getInputStream();
-				tmpOut = socket.getOutputStream();
-			} catch (IOException e) {
-				Log.e(TAG, "temp sockets not created", e);
-			}
-
-			mmInStream = tmpIn;
-			mmOutStream = tmpOut;
-		}
-
-		public void run() {
-			Log.d(TAG, "start ConnectedThread");
-
-			// Keep listening to the InputStream while connected
-			while (true) {
-				try {
-					byte[] buffer = new byte[1024];
-					int readBytes = mmInStream.read(buffer);
-					// construct a string from the valid bytes in the buffer
-					String message = new String(buffer, 0, readBytes);
-					Log.d(TAG,"message: "+message);
-				} catch (IOException e) {
-					Log.e(TAG, "disconnected", e);
-					break;
-				}
-			}
-		}
-
-		/**
-		 * Write to the connected OutStream.
-		 * @param buffer  The bytes to write
-		 */
-		public void write(byte[] buffer) {
-			Log.d(TAG,"writing to outstream");
-			try {
-				mmOutStream.write(buffer);
-			} catch (IOException e) {
-				Log.e(TAG, "Exception during write", e);
-			}
-		}
-
-		public void cancel() {
-			try {
-				mmSocket.close();
-			} catch (IOException e) {
-				Log.e(TAG, "close() of connect socket failed", e);
-			}
+			devices[mDevices.length] = newDevice;
+			mDevices = devices;
+			setListAdapter(new ArrayAdapter<String>(RemoteAuthClientUI.this, android.R.layout.simple_list_item_1, mDevices));
+			mDevice = newDevice;
 		}
 	}
 
 	private void write(Tag tag) {
-		byte[] mimeBytes = "application/com.piusvelte.remoteauth".getBytes(Charset.forName("US-ASCII"));
 		// write the device and address
-		NdefRecord mimeRecord = new NdefRecord(NdefRecord.TNF_MIME_MEDIA, mimeBytes, new byte[0], (mFld_device.getText().toString() + " " + mFld_address.getText().toString()).getBytes());
-		NdefMessage message = new NdefMessage(new NdefRecord[]{mimeRecord, NdefRecord.createApplicationRecord("com.piusvelte.remoteauthclient")});
+		String lang = "en";
+		byte[] textBytes = mDevice.getBytes();
+		byte[] langBytes = null;
+		int langLength = 0;
+		try {
+			langBytes = lang.getBytes("US-ASCII");
+			langLength = langBytes.length;
+		} catch (UnsupportedEncodingException e) {
+			Log.e(TAG, e.toString());
+		}
+		int textLength = textBytes.length;
+		byte[] payload = new byte[1 + langLength + textLength];
+
+		// set status byte (see NDEF spec for actual bits)
+		payload[0] = (byte) langLength;
+
+		// copy langbytes and textbytes into payload
+		if (langBytes != null) {
+			System.arraycopy(langBytes, 0, payload, 1, langLength);
+		}
+		System.arraycopy(textBytes, 0, payload, 1 + langLength, textLength);
+		NdefRecord record = new NdefRecord(NdefRecord.TNF_WELL_KNOWN, 
+				NdefRecord.RTD_TEXT, 
+				new byte[0], 
+				payload);
+		NdefMessage message = new NdefMessage(new NdefRecord[]{record, NdefRecord.createApplicationRecord("com.piusvelte.remoteauthclient")});
 
 		// Get an instance of Ndef for the tag.
 		Ndef ndef = Ndef.get(tag);
@@ -630,6 +415,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener 
 					ndef.writeNdefMessage(message);
 				}
 				ndef.close();
+				Log.d(TAG, "tag written");
 				Toast.makeText(getApplicationContext(), "tag written", Toast.LENGTH_LONG);
 			} catch (IOException e) {
 				Log.d(TAG, e.toString());
@@ -643,6 +429,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener 
 					format.connect();
 					format.format(message);
 					format.close();
+					Log.d(TAG, "tag written");
 					Toast.makeText(getApplicationContext(), "tag written", Toast.LENGTH_LONG);
 				} catch (IOException e) {
 					Log.d(TAG, e.toString());
@@ -651,5 +438,22 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener 
 				}
 			}
 		}
+	}
+
+	@Override
+	public void onServiceConnected(ComponentName name, IBinder binder) {
+		mServiceInterface = IRemoteAuthClientService.Stub.asInterface(binder);
+		if (mUIInterface != null) {
+			try {
+				mServiceInterface.setCallback(mUIInterface);
+			} catch (RemoteException e) {
+				Log.e(TAG, e.toString());
+			}
+		}
+	}
+
+	@Override
+	public void onServiceDisconnected(ComponentName arg0) {
+		mServiceInterface = null;
 	}
 }

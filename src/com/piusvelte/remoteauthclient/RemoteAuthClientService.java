@@ -132,6 +132,7 @@ public class RemoteAuthClientService extends Service {
 						mAcceptThread.cancel();
 						mAcceptThread = null;
 					}
+					setState(STATE_LISTEN);
 					mAcceptThread = new AcceptThread();
 					mAcceptThread.start();
 					if ((mPendingMessage != null) && (mPendingAddress != null)) {
@@ -189,6 +190,7 @@ public class RemoteAuthClientService extends Service {
 		filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
 		registerReceiver(mReceiver, filter);
 		if (mBtAdapter.isEnabled()) {
+			setState(STATE_LISTEN);
 			mAcceptThread = new AcceptThread();
 			mAcceptThread.start();
 		}
@@ -267,6 +269,7 @@ public class RemoteAuthClientService extends Service {
 		}
 
 		// Start the thread to connect with the given device
+		setState(STATE_CONNECTING);
 		mConnectThread = new ConnectThread(device);
 		mConnectThread.start();
 	}
@@ -285,6 +288,7 @@ public class RemoteAuthClientService extends Service {
 		}
 
 		// Start the thread to manage the connection and perform transmissions
+		setState(STATE_CONNECTED);
 		mConnectedThread = new ConnectedThread(socket);
 		mConnectedThread.start();
 	}
@@ -306,7 +310,6 @@ public class RemoteAuthClientService extends Service {
 		}
 
 		public void run() {
-			setState(STATE_LISTEN);
 			BluetoothSocket socket = null;
 
 			// Listen to the server socket if we're not connected
@@ -386,8 +389,6 @@ public class RemoteAuthClientService extends Service {
 		}
 
 		public void run() {
-			setState(STATE_CONNECTING);
-
 			// Always cancel discovery because it will slow down a connection
 			mBtAdapter.cancelDiscovery();
 
@@ -459,7 +460,6 @@ public class RemoteAuthClientService extends Service {
 		}
 
 		public void run() {
-			setState(STATE_CONNECTED);
 			if (mPendingMessage != null) {
 				write(mPendingMessage);
 				mPendingMessage = null;

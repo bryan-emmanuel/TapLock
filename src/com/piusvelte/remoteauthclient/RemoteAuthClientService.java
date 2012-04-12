@@ -122,7 +122,7 @@ public class RemoteAuthClientService extends Service {
 				if (state == BluetoothAdapter.STATE_ON) {
 					if (mUIInterface != null) {
 						try {
-							mUIInterface.setMessage("...btadapter enabled");
+							mUIInterface.setMessage("...btadapter enabled...");
 						} catch (RemoteException e) {
 							Log.e(TAG, e.toString());
 						}
@@ -138,7 +138,7 @@ public class RemoteAuthClientService extends Service {
 					if ((mPendingMessage != null) && (mPendingAddress != null)) {
 						if (mUIInterface != null) {
 							try {
-								mUIInterface.setMessage("pending message and address, connecting...");
+								mUIInterface.setMessage("...pending message and address, connecting...");
 							} catch (RemoteException e) {
 								Log.e(TAG, e.toString());
 							}
@@ -302,7 +302,7 @@ public class RemoteAuthClientService extends Service {
 
 			// Create a new listening server socket
 			try {
-				tmp = mBtAdapter.listenUsingRfcommWithServiceRecord("RemoteAuthClientService", sRemoteAuthServerUUID);
+				tmp = mBtAdapter.listenUsingInsecureRfcommWithServiceRecord("RemoteAuthClientService", sRemoteAuthServerUUID);
 			} catch (IOException e) {
 				Log.e(TAG, e.toString());
 			}

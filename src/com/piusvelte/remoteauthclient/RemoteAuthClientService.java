@@ -7,7 +7,6 @@ import java.util.UUID;
 
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothClass;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
@@ -23,20 +22,20 @@ public class RemoteAuthClientService extends Service {
 	private static final String TAG = "RemoteAuthClientService";
 	protected static final String ACTION_NFC_READ = "com.piusvelte.remoteauthclient.NFC_READ";
 	protected static final String EXTRA_TAGGED_DEVICE = "com.piusvelte.remoteauthclient.TAGGED_DEVICE";
-	public static final int STATE_NONE = 0;       // we're doing nothing
-	public static final int STATE_LISTEN = 1;     // now listening for incoming connections
-	public static final int STATE_CONNECTING = 2; // now initiating an outgoing connection
-	public static final int STATE_CONNECTED = 3;  // now connected to a remote device
-	private int mState = STATE_NONE;
 	private BluetoothAdapter mBtAdapter;
-	private AcceptThread mAcceptThread;
+	private AcceptThread mSecureAcceptThread;
+	private AcceptThread mInsecureAcceptThread;
 	private ConnectThread mConnectThread;
 	private ConnectedThread mConnectedThread;
 	private byte[] mPendingMessage;
 	private String mPendingAddress;
+	private boolean mPendingSecure = false;
+	private boolean mPendingDiscovery = false;
 	private boolean mStartedBT = false;
 	// Unique UUID for this application
-	private static final UUID sRemoteAuthServerUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");//"963b082a-9f01-433d-8478-c26b16ea5da1");
+	private static final String sSPD = "RemoteAuth";
+	private static final UUID sRemoteAuthServerUUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
+
 	private IRemoteAuthClientUI mUIInterface;
 	private final IRemoteAuthClientService.Stub mServiceInterface = new IRemoteAuthClientService.Stub() {
 
@@ -48,14 +47,7 @@ public class RemoteAuthClientService extends Service {
 		}
 
 		@Override
-		public void write(String address, String message) throws RemoteException {
-			if (mUIInterface != null) {
-				try {
-					mUIInterface.setMessage("write: " + message + ", to: " + address);
-				} catch (RemoteException e) {
-					Log.e(TAG, e.toString());
-				}
-			}
+		public void write(String address, String message, boolean secure) throws RemoteException {
 			byte[] out = message.getBytes();
 			if (mBtAdapter.isEnabled()) {
 				if ((mConnectedThread != null) && mConnectedThread.isConnected(address)) {
@@ -68,26 +60,13 @@ public class RemoteAuthClientService extends Service {
 					// Perform the write unsynchronized
 					r.write(out);
 				} else {
-					if (mUIInterface != null) {
-						try {
-							mUIInterface.setMessage("not connected, connecting...");
-						} catch (RemoteException e) {
-							Log.e(TAG, e.toString());
-						}
-					}
 					mPendingMessage = out;
-					connectDevice(address);
+					connectDevice(address, secure);
 				}
 			} else {
-				if (mUIInterface != null) {
-					try {
-						mUIInterface.setMessage("btadapter disabled, enabling...");
-					} catch (RemoteException e) {
-						Log.e(TAG, e.toString());
-					}
-				}
 				mPendingMessage = out;
 				mPendingAddress = address;
+				mPendingSecure = secure;
 				mStartedBT = true;
 				mBtAdapter.enable();
 			}
@@ -95,12 +74,17 @@ public class RemoteAuthClientService extends Service {
 
 		@Override
 		public void requestDiscovery() throws RemoteException {
-			// If we're already discovering, stop it
-			if (mBtAdapter.isDiscovering()) {
-				mBtAdapter.cancelDiscovery();
+			mPendingDiscovery = true;
+			if (mBtAdapter.isEnabled()) {
+				// If we're already discovering, stop it
+				if (mBtAdapter.isDiscovering()) {
+					mBtAdapter.cancelDiscovery();
+				}
+				// Request discover from BluetoothAdapter
+				mBtAdapter.startDiscovery();
+			} else {
+				mBtAdapter.enable();
 			}
-			// Request discover from BluetoothAdapter
-			mBtAdapter.startDiscovery();
 		}
 
 		@Override
@@ -129,52 +113,40 @@ public class RemoteAuthClientService extends Service {
 						}
 					}
 					stopConnectionThreads();
-					//					if (mAcceptThread != null) {
-					//						mAcceptThread.cancel();
-					//						mAcceptThread = null;
-					//					}
-					//					setState(STATE_LISTEN);
-					//					mAcceptThread = new AcceptThread();
-					//					mAcceptThread.start();
 					if ((mPendingMessage != null) && (mPendingAddress != null)) {
-						if (mUIInterface != null) {
-							try {
-								mUIInterface.setMessage("...pending message and address, connecting...");
-							} catch (RemoteException e) {
-								Log.e(TAG, e.toString());
-							}
-						}
-						connectDevice(mPendingAddress);
-						mPendingAddress = null;
+						connectDevice(mPendingAddress, mPendingSecure);
+					} else if (mPendingDiscovery) {
+						mBtAdapter.startDiscovery();
 					}
 				} else if (state == BluetoothAdapter.STATE_TURNING_OFF) {
 					stopConnectionThreads();
-					if (mAcceptThread != null) {
-						mAcceptThread.cancel();
-						mAcceptThread = null;
-					}
+					stopAcceptThreads();
 				}
 				// When discovery finds a device
 			} else if (BluetoothDevice.ACTION_FOUND.equals(action)) {
 				// Get the BluetoothDevice object from the Intent
 				BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
 				// If it's already paired, skip it, because it's been listed already
-				if (device.getBondState() != BluetoothDevice.BOND_BONDED) {
-					if (mUIInterface != null) {
-						try {
-							mUIInterface.setUnpairedDevice(device.getName() + " " + device.getAddress());
-						} catch (RemoteException e) {
-							Log.e(TAG, e.toString());
+				if (mPendingDiscovery) {
+					if (device.getBondState() != BluetoothDevice.BOND_BONDED) {
+						if (mUIInterface != null) {
+							try {
+								mUIInterface.setUnpairedDevice(device.getName() + " " + device.getAddress());
+							} catch (RemoteException e) {
+								Log.e(TAG, e.toString());
+							}
 						}
 					}
 				}
-				// When discovery is finished, change the Activity title
 			} else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
-				if (mUIInterface != null) {
-					try {
-						mUIInterface.setDiscoveryFinished();
-					} catch (RemoteException e) {
-						Log.e(TAG, e.toString());
+				if (mPendingDiscovery) {
+					mPendingDiscovery = false;
+					if (mUIInterface != null) {
+						try {
+							mUIInterface.setDiscoveryFinished();
+						} catch (RemoteException e) {
+							Log.e(TAG, e.toString());
+						}
 					}
 				}
 			}
@@ -190,11 +162,6 @@ public class RemoteAuthClientService extends Service {
 		filter.addAction(BluetoothDevice.ACTION_FOUND);
 		filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
 		registerReceiver(mReceiver, filter);
-		//		if (mBtAdapter.isEnabled()) {
-		//			setState(STATE_LISTEN);
-		//			mAcceptThread = new AcceptThread();
-		//			mAcceptThread.start();
-		//		}
 	}
 
 	@Override
@@ -212,21 +179,32 @@ public class RemoteAuthClientService extends Service {
 		super.onDestroy();
 		unregisterReceiver(mReceiver);
 		stopConnectionThreads();
+		stopAcceptThreads();
 	}
 
-	private synchronized void setState(int state) {
-		Log.d(TAG, "new state: " + (state == STATE_NONE ? "none" : state == STATE_LISTEN ? "listen" : state == STATE_CONNECTING ? "connecting" : state == STATE_CONNECTED ? "connected" : "unknown"));
-		mState = state;
-		if (state == STATE_LISTEN) {
-			if (mAcceptThread != null) {
-				mAcceptThread.cancel();
-				mAcceptThread = null;
+	private synchronized void setListen(boolean listen) {
+		if (listen) {
+			if (mSecureAcceptThread != null) {
+				mSecureAcceptThread.cancel();
+				mSecureAcceptThread = null;
 			}
-			mAcceptThread = new AcceptThread();
-			mAcceptThread.start();
-		} else if (mAcceptThread != null) {
-			mAcceptThread.cancel();
-			mAcceptThread = null;
+			mSecureAcceptThread = new AcceptThread(true);
+			mSecureAcceptThread.start();
+			mInsecureAcceptThread = new AcceptThread(false);
+			mInsecureAcceptThread.start();
+		} else {
+			stopAcceptThreads();
+		}
+	}
+	
+	private void stopAcceptThreads() {
+		if (mSecureAcceptThread != null) {
+			mSecureAcceptThread.cancel();
+			mSecureAcceptThread = null;
+		}
+		if (mInsecureAcceptThread != null) {
+			mInsecureAcceptThread.cancel();
+			mInsecureAcceptThread = null;
 		}
 	}
 
@@ -244,33 +222,20 @@ public class RemoteAuthClientService extends Service {
 		}
 	}
 
-	private void connectDevice(String address) {
+	public synchronized void connectDevice(String address, boolean secure) {
 		// don't reconnect if already connected
 		if ((mConnectedThread == null) || (!mConnectedThread.isConnected(address))) {
-			// Get the BluetoothDevice object
+			Log.d(TAG, "connectDevice " + address);
 			BluetoothDevice device = mBtAdapter.getRemoteDevice(address);
-			// Attempt to connect to the device
-			connect(device);
+			mConnectThread = new ConnectThread(device, secure);
+			if (mConnectThread.hasSocket()) {
+				Log.d(TAG, "has socket");
+				mConnectThread.start();
+			} else {
+				mConnectThread = null;
+				setListen(true);
+			}
 		}
-	}
-
-	/**
-	 * Start the ConnectThread to initiate a connection to a remote device.
-	 * @param device  The BluetoothDevice to connect
-	 * @param secure Socket Security type - Secure (true) , Insecure (false)
-	 */
-	public synchronized void connect(BluetoothDevice device) {
-		// stop any existing connections
-		stopConnectionThreads();
-
-		if (mBtAdapter.isDiscovering()) {
-			mBtAdapter.cancelDiscovery();
-		}
-
-		// Start the thread to connect with the given device
-		setState(STATE_CONNECTING);
-		mConnectThread = new ConnectThread(device);
-		mConnectThread.start();
 	}
 
 	/**
@@ -281,38 +246,32 @@ public class RemoteAuthClientService extends Service {
 	public synchronized void connected(BluetoothSocket socket, BluetoothDevice device) {
 		stopConnectionThreads();
 
-		if (mUIInterface != null) {
-			StringBuilder deviceString = new StringBuilder();
-			BluetoothClass btClass = device.getBluetoothClass();
-			int deviceClass = btClass.getDeviceClass();
-			int majorDeviceClass = btClass.getMajorDeviceClass();
-			deviceString.append("device class: ");
-			deviceString.append(deviceClass);
-			deviceString.append(", device major class: ");
-			deviceString.append(majorDeviceClass);
-			try {
-				mUIInterface.setMessage(deviceString.toString());
-			} catch (RemoteException e) {
-				Log.e(TAG, e.toString());
-			}
-		}
-
 		// Start the thread to manage the connection and perform transmissions
-		setState(STATE_CONNECTED);
+		setListen(false);
 		mConnectedThread = new ConnectedThread(socket);
-		mConnectedThread.start();
+		if (mConnectedThread.hasStreams()) {
+			Log.d(TAG, "has streams");
+			mConnectedThread.start();
+		} else {
+			mConnectedThread = null;
+			setListen(true);
+		}
 	}
 
 	private class AcceptThread extends Thread {
 		// The local server socket
 		private final BluetoothServerSocket mmServerSocket;
 
-		public AcceptThread() {
+		public AcceptThread(boolean secure) {
 			BluetoothServerSocket tmp = null;
 
 			// Create a new listening server socket
 			try {
-				tmp = mBtAdapter.listenUsingInsecureRfcommWithServiceRecord("RemoteAuthClientService", sRemoteAuthServerUUID);
+				if (secure) {
+					tmp = mBtAdapter.listenUsingRfcommWithServiceRecord(sSPD, sRemoteAuthServerUUID);
+				} else {
+					tmp = mBtAdapter.listenUsingInsecureRfcommWithServiceRecord(sSPD, sRemoteAuthServerUUID);
+				}
 			} catch (IOException e) {
 				Log.e(TAG, e.toString());
 			}
@@ -323,7 +282,7 @@ public class RemoteAuthClientService extends Service {
 			BluetoothSocket socket = null;
 
 			// Listen to the server socket if we're not connected
-			while (mState != STATE_CONNECTED) {
+			while (mConnectedThread == null) {
 				try {
 					// This is a blocking call and will only return on a
 					// successful connection or an exception
@@ -336,13 +295,7 @@ public class RemoteAuthClientService extends Service {
 				// If a connection was accepted
 				if (socket != null) {
 					synchronized (RemoteAuthClientService.this) {
-						switch (mState) {
-						case STATE_LISTEN:
-						case STATE_CONNECTING:
-							connected(socket, socket.getRemoteDevice());
-							break;
-						case STATE_NONE:
-						case STATE_CONNECTED:
+						if (mConnectedThread != null) {
 							// Either not ready or already connected. Terminate new socket.
 							try {
 								socket.close();
@@ -350,6 +303,8 @@ public class RemoteAuthClientService extends Service {
 								Log.e(TAG, e.toString());
 							}
 							break;
+						} else {
+							connected(socket, socket.getRemoteDevice());
 						}
 					}
 				}
@@ -371,61 +326,66 @@ public class RemoteAuthClientService extends Service {
 	 * succeeds or fails.
 	 */
 	private class ConnectThread extends Thread {
-		private final BluetoothSocket mmSocket;
-		private final BluetoothDevice mmDevice;
+		private BluetoothSocket mmSocket;
+		private BluetoothDevice mmDevice;
 
-		public ConnectThread(BluetoothDevice device) {
+		public ConnectThread(BluetoothDevice device, boolean secure) {
+			if (mBtAdapter.isDiscovering()) {
+				mBtAdapter.cancelDiscovery();
+			}
+			
 			mmDevice = device;
 			BluetoothSocket tmp = null;
 
 			// Get a BluetoothSocket for a connection with the
 			// given BluetoothDevice
 			try {
-				//				Method m = mBtAdapter.getClass().getMethod("createRfcommSocket", new Class[] { int.class });
-				//				tmp = (BluetoothSocket) m.invoke(device, Integer.valueOf(1));
-				tmp = device.createRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
+				Log.d(TAG, "create socket");
+				if (secure) {
+					tmp = device.createRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
+				} else {
+					tmp = device.createInsecureRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
+				}
 			} catch (IOException e) {
 				Log.e(TAG, e.toString());
-				//			} catch (NoSuchMethodException e) {
-				//				Log.e(TAG, e.toString());
-				//			} catch (IllegalArgumentException e) {
-				//				Log.e(TAG, e.toString());
-				//			} catch (IllegalAccessException e) {
-				//				Log.e(TAG, e.toString());
-				//			} catch (InvocationTargetException e) {
-				//				Log.e(TAG, e.toString());
 			}
 			mmSocket = tmp;
 		}
 
+		public boolean hasSocket() {
+			return (mmSocket != null);
+		}
+
 		public void run() {
-			// Always cancel discovery because it will slow down a connection
-			mBtAdapter.cancelDiscovery();
 
 			// Make a connection to the BluetoothSocket
 			try {
 				// This is a blocking call and will only return on a
 				// successful connection or an exception
+				Log.d(TAG, "socket connect");
 				mmSocket.connect();
 			} catch (IOException e) {
+				Log.e(TAG, e.toString());
 				// Close the socket
 				try {
 					mmSocket.close();
 				} catch (IOException e2) {
 					Log.e(TAG, e2.toString());
+				} finally {
+					mmSocket = null;
 				}
 				// fallback to listening
-				setState(STATE_LISTEN);
+				setListen(true);
 				return;
 			}
+
+			// Start the connected thread
+			connected(mmSocket, mmDevice);
 
 			// Reset the ConnectThread because we're done
 			synchronized (RemoteAuthClientService.this) {
 				mConnectThread = null;
 			}
-
-			// Start the connected thread
-			connected(mmSocket, mmDevice);
 		}
 
 		public void cancel() {
@@ -463,14 +423,14 @@ public class RemoteAuthClientService extends Service {
 			mmOutStream = tmpOut;
 		}
 
+		public boolean hasStreams() {
+			return (mmInStream != null) && (mmOutStream != null);
+		}
+
 		public void run() {
 			if (mPendingMessage != null) {
 				write(mPendingMessage);
 				mPendingMessage = null;
-				//				if (mDisableAfterWrite) {
-				//					mBtAdapter.disable();
-				//					mDisableAfterWrite = false;
-				//				}
 			}
 
 			// Keep listening to the InputStream while connected

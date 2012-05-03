@@ -9,6 +9,7 @@ import java.util.Set;
 import android.app.AlertDialog;
 import android.app.ListActivity;
 import android.app.PendingIntent;
+import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.ComponentName;
@@ -38,6 +39,7 @@ import android.view.ContextMenu.ContextMenuInfo;
 import android.view.View.OnClickListener;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.ListView;
 import android.widget.AdapterView.AdapterContextMenuInfo;
 import android.widget.Toast;
@@ -45,10 +47,12 @@ import android.widget.Toast;
 public class RemoteAuthClientUI extends ListActivity implements OnClickListener, ServiceConnection {
 	private static final String TAG = "RemoteAuthClientUI";
 	private Button mBtn_add;
+	private CheckBox mChk_sec;
+	private ProgressDialog mProgressDialog;
 	private AlertDialog mDialog;
 	private String[] mDevices;
-	private String[] mPairedDevices;
-	private String[] mUnpairedDevices;
+	private String[] mPairedDevices = new String[0];
+	private String[] mUnpairedDevices = new String[0];
 	//	private BluetoothAdapter mBtAdapter;
 	private static final int REMOVE_ID = Menu.FIRST;
 	private String mDevice;
@@ -81,12 +85,15 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 
 		@Override
 		public void setDiscoveryFinished() throws RemoteException {
+			if ((mProgressDialog != null) && mProgressDialog.isShowing()) {
+				mProgressDialog.cancel();
+			}
 			if (mUnpairedDevices.length > 0) {
 				mDialog = new AlertDialog.Builder(RemoteAuthClientUI.this)
 				.setItems(mUnpairedDevices, new DialogInterface.OnClickListener() {					
 					@Override
 					public void onClick(DialogInterface dialog, int which) {
-						addNewDevice(mPairedDevices[which]);
+						addNewDevice(mUnpairedDevices[which]);
 					}
 				})
 				.create();
@@ -103,8 +110,9 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.main);
 		registerForContextMenu(getListView());
-		mBtn_add = ((Button)findViewById(R.id.btn_add));
+		mBtn_add = ((Button) findViewById(R.id.btn_add));
 		mBtn_add.setOnClickListener(this);
+		mChk_sec = ((CheckBox) findViewById(R.id.chk_sec));
 		//NFC
 		mNfcAdapter = NfcAdapter.getDefaultAdapter(getApplicationContext());
 	}
@@ -117,7 +125,6 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 	@Override
 	protected void onResume() {
 		super.onResume();
-		Log.d(TAG, "bind service");
 		bindService(new Intent(this, RemoteAuthClientService.class), this, BIND_AUTO_CREATE);
 		SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
 		Set<String> devices = sp.getStringSet(getString(R.string.key_devices), null);
@@ -193,7 +200,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 							if (exists) {
 								if (mServiceInterface != null) {
 									try {
-										mServiceInterface.write(taggedDevice.substring(taggedDevice.length() - 17), "toggle");
+										mServiceInterface.write(taggedDevice.substring(taggedDevice.length() - 17), "toggle", mChk_sec.isChecked());
 									} catch (RemoteException e) {
 										Log.e(TAG, e.toString());
 									}
@@ -225,6 +232,9 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		mNfcAdapter.disableForegroundDispatch(this);
 		if ((mDialog != null) && mDialog.isShowing()) {
 			mDialog.cancel();
+		}
+		if ((mProgressDialog != null) && mProgressDialog.isShowing()) {
+			mProgressDialog.cancel();
 		}
 		// save devices
 		Set<String> devices = new HashSet<String>();
@@ -275,7 +285,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 					// attempt to connect to the device
 					if (mServiceInterface != null) {
 						try {
-							mServiceInterface.write(mDevice.substring(mDevice.length() - 17), state);
+							mServiceInterface.write(mDevice.substring(mDevice.length() - 17), state, mChk_sec.isChecked());
 						} catch (RemoteException e) {
 							Log.e(TAG, e.toString());
 						}
@@ -355,6 +365,10 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 				if (mServiceInterface != null) {
 					try {
 						mServiceInterface.requestDiscovery();
+						mProgressDialog = new ProgressDialog(this);
+						mProgressDialog.setMessage("scanning for new devices");
+						mProgressDialog.setCancelable(true);
+						mProgressDialog.show();
 					} catch (RemoteException e) {
 						Log.e(TAG, e.toString());
 					}

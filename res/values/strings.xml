@@ -3,6 +3,7 @@
 
     <string name="app_name">Remote Auth Client</string>
     <string name="btn_add">Add</string>
+    <string name="chk_sec">Secure</string>
     <string name="btn_scan">Scan</string>
     <string name="key_preferences">remoteauthclient</string>
     <string name="key_devices">devices</string>

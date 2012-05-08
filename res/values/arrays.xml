@@ -22,7 +22,9 @@
 	<string-array name="states">
 		<item>lock</item>
 		<item>unlock</item>
+		<item>toggle</item>
 		<item>tag</item>
 		<item>remove</item>
+		<item>service discovery</item>
 	</string-array>
 </resources>

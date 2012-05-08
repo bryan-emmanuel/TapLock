@@ -53,9 +53,11 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 	private String[] mDevices;
 	private String[] mPairedDevices = new String[0];
 	private String[] mUnpairedDevices = new String[0];
+	private String[] mServices = new String[0];
 	//	private BluetoothAdapter mBtAdapter;
 	private static final int REMOVE_ID = Menu.FIRST;
 	private String mDevice;
+	private String mUuid;
 
 	// NFC
 	private NfcAdapter mNfcAdapter = null;
@@ -100,6 +102,56 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 				mDialog.show();
 			} else {
 				Toast.makeText(getApplicationContext(), "no devices discovered", Toast.LENGTH_LONG).show();
+			}
+		}
+
+		@Override
+		public void setService(String service) throws RemoteException {
+			String[] services = mServices;
+			mServices = new String[services.length + 1];
+			for (int i = 0, l = services.length; i < l; i++) {
+				mServices[i] = services[i];
+			}
+			mServices[services.length] = service;
+		}
+
+		@Override
+		public void setServiceDiscoveryFinished() throws RemoteException {
+			if (mServices.length > 0) {
+				mDialog = new AlertDialog.Builder(RemoteAuthClientUI.this)
+				.setItems(mServices, new DialogInterface.OnClickListener() {
+					@Override
+					public void onClick(DialogInterface dialog, int which) {
+						mUuid = mServices[which];
+						dialog.cancel();
+						mDialog = new AlertDialog.Builder(RemoteAuthClientUI.this)
+						.setItems(R.array.states, new DialogInterface.OnClickListener() {
+							@Override
+							public void onClick(DialogInterface dialog, int which) {
+								String state = getResources().getStringArray(R.array.states)[which];
+								if (state.equals("tag")) {
+								} else if (state.equals("remove")) {
+								} else if (state.equals("service discovery")) {
+								} else {
+									// attempt to connect to the device
+									if (mServiceInterface != null) {
+										try {
+											mServiceInterface.writeUsingUuid(mDevice.substring(mDevice.length() - 17), state, mChk_sec.isChecked(), mUuid);
+										} catch (RemoteException e) {
+											Log.e(TAG, e.toString());
+										}
+									}
+								}
+							}
+						})
+						.create();
+						mDialog.show();
+					}
+				})
+				.create();
+				mDialog.show();
+			} else {
+				Toast.makeText(getApplicationContext(), "no valid services discovered", Toast.LENGTH_LONG).show();
 			}
 		}
 
@@ -281,6 +333,16 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 					}
 					mDevices = devices;
 					setListAdapter(new ArrayAdapter<String>(RemoteAuthClientUI.this, android.R.layout.simple_list_item_1, mDevices));
+				} else if (state.equals("service discovery")) {
+					mServices = new String[0];
+					mUuid = null;
+					if (mServiceInterface != null) {
+						try {
+							mServiceInterface.requestServiceDiscovery(mDevice.substring(mDevice.length() - 17));
+						} catch (RemoteException e) {
+							Log.e(TAG, e.toString());
+						}
+					}
 				} else {
 					// attempt to connect to the device
 					if (mServiceInterface != null) {

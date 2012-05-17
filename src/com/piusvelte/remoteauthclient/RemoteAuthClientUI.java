@@ -39,7 +39,7 @@ import android.view.ContextMenu.ContextMenuInfo;
 import android.view.View.OnClickListener;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.CheckBox;
+//import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.AdapterView.AdapterContextMenuInfo;
@@ -48,7 +48,7 @@ import android.widget.Toast;
 public class RemoteAuthClientUI extends ListActivity implements OnClickListener, ServiceConnection {
 	private static final String TAG = "RemoteAuthClientUI";
 	private Button mBtn_add;
-	private CheckBox mChk_sec;
+//	private CheckBox mChk_sec;
 	private ProgressDialog mProgressDialog;
 	private AlertDialog mDialog;
 	private String[] mDevices;
@@ -122,17 +122,18 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		registerForContextMenu(getListView());
 		mBtn_add = ((Button) findViewById(R.id.btn_add));
 		mBtn_add.setOnClickListener(this);
-		mChk_sec = ((CheckBox) findViewById(R.id.chk_sec));
+//		mChk_sec = ((CheckBox) findViewById(R.id.chk_sec));
 		//NFC
 		mNfcAdapter = NfcAdapter.getDefaultAdapter(getApplicationContext());
 	}
 
 	@Override 
 	public void onNewIntent(Intent intent) {
-		Log.d(TAG,"onNewIntent");
 		// handle NFC intents
+		Log.d(TAG, "onNewIntent");
 		if (intent != null) {
 			String action = intent.getAction();
+			Log.d(TAG, "action: " + action);
 			Bundle extras = intent.getExtras();
 			if (extras != null) {
 				Set<String> keys = extras.keySet();
@@ -146,7 +147,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 				if ((tag != null) && (mDevice != null)) {
 					write(tag);
 					mNfcAdapter.disableForegroundDispatch(this);
-					mInWriteMode=false;
+					mInWriteMode = false;
 				}
 			} else if (action.equals(NfcAdapter.ACTION_NDEF_DISCOVERED) && intent.hasExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)) {
 				Parcelable[] rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
@@ -188,12 +189,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 	@Override
 	protected void onResume() {
 		super.onResume();
-		Log.d(TAG,"onResume, in write mode?" + mInWriteMode);
-		if (mServiceInterface == null) {
-			bindService(new Intent(this, RemoteAuthClientService.class), this, BIND_AUTO_CREATE);
-		} else if (mPendingTagEvent != null) {
-			pendingTagEvent();
-		}
+		bindService(new Intent(this, RemoteAuthClientService.class), this, BIND_AUTO_CREATE);
 		SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
 		Set<String> devices = sp.getStringSet(getString(R.string.key_devices), null);
 		if (devices != null) {
@@ -218,6 +214,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 			} catch (RemoteException e) {
 				Log.e(TAG, e.toString());
 			}
+			unbindService(this);
 		}
 		mDevice = null;
 		mInWriteMode = false;
@@ -237,7 +234,6 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		SharedPreferences.Editor spe = sp.edit();
 		spe.putStringSet(getString(R.string.key_devices), devices);
 		spe.commit();
-		unbindService(this);
 	}
 
 	@Override
@@ -259,7 +255,8 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 					if (mServiceInterface != null) {
 						try {
 							String[] parsedDevice = parseDeviceString(mDevice);
-							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(state), mChk_sec.isChecked(), parsedDevice[DEVICE_PASSPHRASE]);
+//							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(state), mChk_sec.isChecked(), parsedDevice[DEVICE_PASSPHRASE]);
+							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(state), false, parsedDevice[DEVICE_PASSPHRASE]);
 						} catch (RemoteException e) {
 							Log.e(TAG, e.toString());
 						}
@@ -267,13 +264,12 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 					break;
 				case STATE_TAG:
 					// write the device to a tag
-					IntentFilter discovery = new IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED);
-					IntentFilter[] tagFilters = new IntentFilter[] {discovery};
-					Intent intent = new Intent(RemoteAuthClientUI.this, getClass());
-					PendingIntent pi = PendingIntent.getActivity(RemoteAuthClientUI.this, 0, intent, 0);
 					mInWriteMode = true;
-					mNfcAdapter.enableForegroundDispatch(RemoteAuthClientUI.this, pi, tagFilters, null);
-					Toast.makeText(RemoteAuthClientUI.this, "Touch tag", Toast.LENGTH_LONG);
+					mNfcAdapter.enableForegroundDispatch(RemoteAuthClientUI.this,
+							PendingIntent.getActivity(RemoteAuthClientUI.this, 0, new Intent(RemoteAuthClientUI.this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), 0),
+							new IntentFilter[] {new IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED)},
+							null);
+					Toast.makeText(RemoteAuthClientUI.this, "Touch tag", Toast.LENGTH_LONG).show();
 					break;
 				case STATE_REMOVE:
 					// remove device
@@ -410,7 +406,8 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 			if (mServiceInterface != null) {
 				try {
 					String[] parsedDevice = parseDeviceString(mDevice);
-					mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], "toggle", mChk_sec.isChecked(), parsedDevice[DEVICE_PASSPHRASE]);
+//					mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], "toggle", mChk_sec.isChecked(), parsedDevice[DEVICE_PASSPHRASE]);
+					mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], "toggle", false, parsedDevice[DEVICE_PASSPHRASE]);
 				} catch (RemoteException e) {
 					Log.e(TAG, e.toString());
 				}
@@ -486,7 +483,6 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 	}
 
 	private void write(Tag tag) {
-		Log.d(TAG, "write tag");
 		// write the device and address
 		String lang = "en";
 		// don't write the passphrase!

@@ -7,8 +7,11 @@
     <string name="btn_scan">Scan</string>
     <string name="key_preferences">remoteauthclient</string>
     <string name="key_devices">devices</string>
+    <string name="key_widgets">widgets</string>
     <string name="no_devices">No saved devices</string>
     <string name="ttl_enablebt">Enable Bluetooth?</string>
     <string name="mn_remove">Remove device</string>
+    <string name="widget_device_name">unknown</string>
+    <string name="widget_device_state">toggle</string>
 
 </resources>

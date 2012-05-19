@@ -38,6 +38,16 @@
             </intent-filter>
         </activity>
         <service android:name=".RemoteAuthClientService" />
+		<receiver android:name=".RemoteAuthClientWidget" android:label="@string/app_name">
+			<intent-filter>
+				<action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+			</intent-filter>
+			<intent-filter>
+				<action android:name="com.piusvelte.remoteauthclient.ACTION_TOGGLE" />
+			</intent-filter>
+			<meta-data android:name="android.appwidget.provider"
+				android:resource="@xml/widget_1x1" />
+		</receiver>
     </application>
 
 </manifest>

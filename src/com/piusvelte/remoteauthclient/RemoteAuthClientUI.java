@@ -10,6 +10,7 @@ import android.app.AlertDialog;
 import android.app.ListActivity;
 import android.app.PendingIntent;
 import android.app.ProgressDialog;
+import android.appwidget.AppWidgetManager;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.ComponentName;
@@ -48,7 +49,7 @@ import android.widget.Toast;
 public class RemoteAuthClientUI extends ListActivity implements OnClickListener, ServiceConnection {
 	private static final String TAG = "RemoteAuthClientUI";
 	private Button mBtn_add;
-//	private CheckBox mChk_sec;
+	//	private CheckBox mChk_sec;
 	private ProgressDialog mProgressDialog;
 	private AlertDialog mDialog;
 	private String[] mDevices;
@@ -58,16 +59,18 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 	private String mDevice;
 	private String mPendingTagEvent;
 
-	private static final int STATE_UNLOCK = 0;
-	private static final int STATE_LOCK = 1;
-	private static final int STATE_TOGGLE = 2;
+	public static final int STATE_UNLOCK = 0;
+	public static final int STATE_LOCK = 1;
+	public static final int STATE_TOGGLE = 2;
 	private static final int STATE_TAG = 3;
 	private static final int STATE_REMOVE = 4;
 	private static final int STATE_PASSPHRASE = 5;
 
-	private static final int DEVICE_NAME = 0;
-	private static final int DEVICE_PASSPHRASE = 1;
-	private static final int DEVICE_ADDRESS = 2;
+	public static final int DEVICE_NAME = 0;
+	public static final int DEVICE_PASSPHRASE = 1;
+	public static final int DEVICE_ADDRESS = 2;
+
+	private int mAppWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID;
 
 	// NFC
 	private NfcAdapter mNfcAdapter = null;
@@ -122,9 +125,20 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		registerForContextMenu(getListView());
 		mBtn_add = ((Button) findViewById(R.id.btn_add));
 		mBtn_add.setOnClickListener(this);
-//		mChk_sec = ((CheckBox) findViewById(R.id.chk_sec));
+		//		mChk_sec = ((CheckBox) findViewById(R.id.chk_sec));
 		//NFC
 		mNfcAdapter = NfcAdapter.getDefaultAdapter(getApplicationContext());
+
+		Intent intent = getIntent();
+		if (intent != null) {
+			Bundle extras = intent.getExtras();
+			if (extras != null) {
+				mAppWidgetId = extras.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
+				Intent resultValue = new Intent();
+				resultValue.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, mAppWidgetId);
+				setResult(RESULT_OK, resultValue);
+			}
+		}
 	}
 
 	@Override 
@@ -190,7 +204,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 	protected void onResume() {
 		super.onResume();
 		bindService(new Intent(this, RemoteAuthClientService.class), this, BIND_AUTO_CREATE);
-		SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
+		final SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
 		Set<String> devices = sp.getStringSet(getString(R.string.key_devices), null);
 		if (devices != null) {
 			mDevices = new String[devices.size()];
@@ -203,6 +217,36 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 			mDevices = new String[0];
 		}
 		setListAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mDevices));
+
+		// check if configuring a widget
+		if (mAppWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+			mDialog = new AlertDialog.Builder(this)
+			.setTitle("Select device for widget")
+			.setItems(mDevices, new DialogInterface.OnClickListener() {
+
+				@Override
+				public void onClick(DialogInterface dialog, int which) {
+					String[] deviceParts = parseDeviceString(mDevices[which]);
+					String name = deviceParts[DEVICE_NAME];
+					String address = deviceParts[DEVICE_ADDRESS];
+					String widgetString = name + " " + Integer.toString(mAppWidgetId) + " " + address;
+					// store the widget
+					Set<String> widgets = sp.getStringSet(getString(R.string.key_widgets), (new HashSet<String>()));
+					if (!widgets.contains(widgetString)) {
+						widgets.add(widgetString);
+					}
+					SharedPreferences.Editor spe = sp.edit();
+					spe.putStringSet(getString(R.string.key_widgets), widgets);
+					spe.commit();
+					sendBroadcast(new Intent(RemoteAuthClientUI.this, RemoteAuthClientWidget.class).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, mAppWidgetId).putExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME, name).putExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS, address));
+					mAppWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID;
+					dialog.cancel();
+					RemoteAuthClientUI.this.finish();
+				}
+			})
+			.create();
+			mDialog.show();
+		}
 	}
 
 	@Override
@@ -255,8 +299,8 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 					if (mServiceInterface != null) {
 						try {
 							String[] parsedDevice = parseDeviceString(mDevice);
-//							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(state), mChk_sec.isChecked(), parsedDevice[DEVICE_PASSPHRASE]);
-							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(state), false, parsedDevice[DEVICE_PASSPHRASE]);
+							//							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(state), mChk_sec.isChecked(), parsedDevice[DEVICE_PASSPHRASE]);
+							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(state), parsedDevice[DEVICE_PASSPHRASE]);
 						} catch (RemoteException e) {
 							Log.e(TAG, e.toString());
 						}
@@ -406,8 +450,8 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 			if (mServiceInterface != null) {
 				try {
 					String[] parsedDevice = parseDeviceString(mDevice);
-//					mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], "toggle", mChk_sec.isChecked(), parsedDevice[DEVICE_PASSPHRASE]);
-					mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], "toggle", false, parsedDevice[DEVICE_PASSPHRASE]);
+					//					mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], "toggle", mChk_sec.isChecked(), parsedDevice[DEVICE_PASSPHRASE]);
+					mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], "toggle", parsedDevice[DEVICE_PASSPHRASE]);
 				} catch (RemoteException e) {
 					Log.e(TAG, e.toString());
 				}
@@ -416,7 +460,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		mPendingTagEvent = null;
 	}
 
-	private String[] parseDeviceString(String device) {
+	protected static String[] parseDeviceString(String device) {
 		String[] parsedDevice = new String[3];
 		int nameEnd = device.indexOf(" ");
 		if (nameEnd != -1) {
@@ -446,7 +490,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		return parsedDevice;
 	}
 
-	private String buildDeviceString(String[] parsedDevice) {
+	protected static String buildDeviceString(String[] parsedDevice) {
 		StringBuilder device = new StringBuilder();
 		for (String item : parsedDevice) {
 			if (device.length() > 0) {

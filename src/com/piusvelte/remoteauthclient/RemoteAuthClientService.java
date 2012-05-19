@@ -19,6 +19,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -27,8 +28,10 @@ import android.util.Log;
 public class RemoteAuthClientService extends Service {
 	private static final String TAG = "RemoteAuthClientService";
 	private static final boolean sDebug = false;
-	protected static final String ACTION_NFC_READ = "com.piusvelte.remoteauthclient.NFC_READ";
-	protected static final String EXTRA_TAGGED_DEVICE = "com.piusvelte.remoteauthclient.TAGGED_DEVICE";
+	public static final String ACTION_TOGGLE = "com.piusvelte.remoteAuthClient.ACTION_TOGGLE";
+	public static final String EXTRA_DEVICE_ADDRESS = "com.piusvelte.remoteAuthClient.EXTRA_DEVICE_ADDRESS";
+	public static final String EXTRA_DEVICE_NAME = "com.piusvelte.remoteAuthClient.EXTRA_DEVICE_NAME";
+	public static final String EXTRA_DEVICE_STATE = "com.piusvelte.remoteAuthClient.EXTRA_DEVICE_STATE";
 	private BluetoothAdapter mBtAdapter;
 	//	private AcceptThread mSecureAcceptThread;
 	private AcceptThread mInsecureAcceptThread;
@@ -37,7 +40,7 @@ public class RemoteAuthClientService extends Service {
 	private String mPendingState;
 	private String mPendingAddress;
 	private String mPendingUuid;
-	private boolean mPendingSecure = false;
+//	private boolean mPendingSecure = false;
 	private String mPendingPassphrase;
 	private static final int REQUEST_NONE = 0;
 	private static final int REQUEST_WRITE = 1;
@@ -75,29 +78,8 @@ public class RemoteAuthClientService extends Service {
 		}
 
 		@Override
-		public void write(String address, String state, boolean secure, String passphrase) throws RemoteException {
-			String uuid = sRemoteAuthServerUUID.toString();
-			setRequest(REQUEST_WRITE);
-			if (mBtAdapter.isEnabled()) {
-				//				if ((mConnectedThread != null) && mConnectedThread.isConnected(address)) {
-				if ((mConnectThread != null) && mConnectThread.isConnected(address)) {
-					// Create temporary object
-					ConnectThread r;
-					// Synchronize a copy of the ConnectedThread
-					synchronized (this) {
-						r = mConnectThread;
-					}
-					// Perform the write unsynchronized
-					r.write(state);
-				} else {
-					setPendingRequest(state, address, uuid, secure, passphrase);
-					connectDevice(address, secure, uuid, passphrase, null);
-				}
-			} else {
-				setPendingRequest(state, address, uuid, secure, passphrase);
-				mStartedBT = true;
-				mBtAdapter.enable();
-			}
+		public void write(String address, String state, String passphrase) throws RemoteException {
+			requestWrite(address, state, passphrase);
 		}
 
 		@Override
@@ -214,6 +196,12 @@ public class RemoteAuthClientService extends Service {
 
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
+		if (intent != null) {
+			String action = intent.getAction();
+			if ((action != null) && action.equals(ACTION_TOGGLE) && intent.hasExtra(EXTRA_DEVICE_ADDRESS)) {
+				requestWrite(intent.getStringExtra(EXTRA_DEVICE_ADDRESS));
+			}
+		}
 		return START_STICKY;
 	}
 
@@ -229,7 +217,49 @@ public class RemoteAuthClientService extends Service {
 		stopConnectionThreads();
 		setListen(false, null);
 	}
+	
+	private void requestWrite(String address) {
+		// need to get the passphrase
+		SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
+		Set<String> devices = sp.getStringSet(getString(R.string.key_devices), null);
+		if (devices != null) {
+			Iterator<String> iter = devices.iterator();
+			while (iter.hasNext()) {
+				String device = iter.next();
+				String[] deviceParts = RemoteAuthClientUI.parseDeviceString(device);
+				if (deviceParts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(address)) {
+					requestWrite(address, Integer.toString(RemoteAuthClientUI.STATE_TOGGLE), deviceParts[RemoteAuthClientUI.DEVICE_PASSPHRASE]);
+					break;
+				}
+			}
+		}
+	}
 
+	private void requestWrite(String address, String state, String passphrase) {
+		String uuid = sRemoteAuthServerUUID.toString();
+		setRequest(REQUEST_WRITE);
+		if (mBtAdapter.isEnabled()) {
+			//				if ((mConnectedThread != null) && mConnectedThread.isConnected(address)) {
+			if ((mConnectThread != null) && mConnectThread.isConnected(address)) {
+				// Create temporary object
+				ConnectThread r;
+				// Synchronize a copy of the ConnectedThread
+				synchronized (this) {
+					r = mConnectThread;
+				}
+				// Perform the write unsynchronized
+				r.write(state);
+			} else {
+				setPendingRequest(state, address, uuid, passphrase);
+				connectDevice(address, uuid, passphrase, null);
+			}
+		} else {
+			setPendingRequest(state, address, uuid, passphrase);
+			mStartedBT = true;
+			mBtAdapter.enable();
+		}
+	}
+	
 	private synchronized void setListen(boolean listen, String passphrase) {
 		if (listen) {
 			mMessage = "start listen";
@@ -244,7 +274,7 @@ public class RemoteAuthClientService extends Service {
 				mInsecureAcceptThread.cancel();
 				mInsecureAcceptThread = null;
 			}
-			mInsecureAcceptThread = new AcceptThread(false, passphrase);
+			mInsecureAcceptThread = new AcceptThread(passphrase);
 			mInsecureAcceptThread.start();
 			mBtAdapter.startDiscovery();
 		} else {
@@ -291,11 +321,11 @@ public class RemoteAuthClientService extends Service {
 		return device;
 	}
 
-	public void setPendingRequest(String state, String address, String uuid, boolean secure, String passphrase) {
+	public void setPendingRequest(String state, String address, String uuid, String passphrase) {
 		mPendingState = state;
 		mPendingAddress = address;
 		mPendingUuid = uuid;
-		mPendingSecure = secure;
+//		mPendingSecure = secure;
 		mPendingPassphrase = passphrase;
 	}
 
@@ -319,10 +349,10 @@ public class RemoteAuthClientService extends Service {
 	}
 
 	public void connectDevice(BluetoothDevice device) {
-		connectDevice(mPendingAddress, mPendingSecure, mPendingUuid, mPendingPassphrase, device);
+		connectDevice(mPendingAddress, mPendingUuid, mPendingPassphrase, device);
 	}
 
-	public synchronized void connectDevice(String address, boolean secure, String uuid, String passphrase, BluetoothDevice device) {
+	public synchronized void connectDevice(String address, String uuid, String passphrase, BluetoothDevice device) {
 		// don't reconnect if already connected
 		//		if ((mConnectedThread == null) || (!mConnectedThread.isConnected(address))) {
 		if ((mConnectThread == null) || (!mConnectThread.isConnected(address))) {
@@ -335,7 +365,7 @@ public class RemoteAuthClientService extends Service {
 			if (device == null) {
 				device = getDevice(address);
 			}
-			mConnectThread = new ConnectThread(device, secure, uuid, passphrase);
+			mConnectThread = new ConnectThread(device, uuid, passphrase);
 			if (mConnectThread.hasSocket()) {
 				mConnectThread.start();
 			} else {
@@ -387,17 +417,17 @@ public class RemoteAuthClientService extends Service {
 
 		private String mPassphrase;
 
-		public AcceptThread(boolean secure, String passphrase) {
+		public AcceptThread(String passphrase) {
 			mPassphrase = passphrase;
 			BluetoothServerSocket tmp = null;
 
 			// Create a new listening server socket
 			try {
-				if (secure) {
-					tmp = mBtAdapter.listenUsingRfcommWithServiceRecord(sSPD, sRemoteAuthServerUUID);
-				} else {
-					tmp = mBtAdapter.listenUsingInsecureRfcommWithServiceRecord(sSPD, sRemoteAuthServerUUID);
-				}
+//				if (secure) {
+//					tmp = mBtAdapter.listenUsingRfcommWithServiceRecord(sSPD, sRemoteAuthServerUUID);
+//				} else {
+				tmp = mBtAdapter.listenUsingInsecureRfcommWithServiceRecord(sSPD, sRemoteAuthServerUUID);
+//				}
 			} catch (IOException e) {
 				Log.e(TAG, e.toString());
 			}
@@ -472,7 +502,7 @@ public class RemoteAuthClientService extends Service {
 			mPassphrase = passphrase;
 		}
 
-		public ConnectThread(BluetoothDevice device, boolean secure, String uuid, String passphrase) {
+		public ConnectThread(BluetoothDevice device, String uuid, String passphrase) {
 			//			mDevice = device;
 			mPassphrase = passphrase;
 			BluetoothSocket tmp = null;
@@ -481,11 +511,11 @@ public class RemoteAuthClientService extends Service {
 			// given BluetoothDevice
 			try {
 				Log.d(TAG, "create socket");
-				if (secure) {
-					tmp = device.createRfcommSocketToServiceRecord(UUID.fromString(uuid));
-				} else {
-					tmp = device.createInsecureRfcommSocketToServiceRecord(UUID.fromString(uuid));
-				}
+//				if (secure) {
+//					tmp = device.createRfcommSocketToServiceRecord(UUID.fromString(uuid));
+//				} else {
+				tmp = device.createInsecureRfcommSocketToServiceRecord(UUID.fromString(uuid));
+//				}
 			} catch (IOException e) {
 				Log.e(TAG, e.toString());
 			}
@@ -562,6 +592,29 @@ public class RemoteAuthClientService extends Service {
 									mHandler.post(mRunnable);
 									write(mPendingState);
 								}
+							} else if ((message.length() > 6) && (message.substring(0, 5).equals("state"))) {
+								// update widgets
+								//TODO: need to identify the widgets for this device
+//								int state = Integer.parseInt(message.substring(6));
+//								String response = "toggle";
+//								if (state== RemoteAuthClientUI.STATE_UNLOCK) {
+//									response = "lock";
+//								} else if (state == RemoteAuthClientUI.STATE_LOCK) {
+//									response = "unlock";
+//								}
+//								SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
+//								Set<String> devices = sp.getStringSet(getString(R.string.key_devices), null);
+//								if (devices != null) {
+//									Iterator<String> iter = devices.iterator();
+//									while (iter.hasNext()) {
+//										String device = iter.next();
+//										String[] deviceParts = RemoteAuthClientUI.parseDeviceString(device);
+//										if (deviceParts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(address)) {
+//											requestWrite(address, Integer.toString(RemoteAuthClientUI.STATE_TOGGLE), false, deviceParts[RemoteAuthClientUI.DEVICE_PASSPHRASE]);
+//											break;
+//										}
+//									}
+//								}
 							}
 						} else {
 							mConnected = false;

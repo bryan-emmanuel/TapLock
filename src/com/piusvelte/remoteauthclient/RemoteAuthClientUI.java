@@ -148,16 +148,11 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		if (intent != null) {
 			String action = intent.getAction();
 			Log.d(TAG, "action: " + action);
-			Bundle extras = intent.getExtras();
-			if (extras != null) {
-				Set<String> keys = extras.keySet();
-				Iterator<String> iter = keys.iterator();
-				while (iter.hasNext()) {
-					Log.d(TAG,"key: " + iter.next());
-				}
-			}
+			Log.d(TAG, "mDevice: " + mDevice);
+			Log.d(TAG, "mInWriteMode: " + mInWriteMode);
 			if (mInWriteMode && action.equals(NfcAdapter.ACTION_TAG_DISCOVERED)) {
 				Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+				Log.d(TAG, (tag != null ? "has tag" : "tag is null"));
 				if ((tag != null) && (mDevice != null)) {
 					write(tag);
 					mNfcAdapter.disableForegroundDispatch(this);
@@ -203,6 +198,8 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 	@Override
 	protected void onResume() {
 		super.onResume();
+		// start the service before binding so that the service stays around for faster future connections
+		startService(new Intent(this, RemoteAuthClientService.class));
 		bindService(new Intent(this, RemoteAuthClientService.class), this, BIND_AUTO_CREATE);
 		final SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
 		Set<String> devices = sp.getStringSet(getString(R.string.key_devices), null);
@@ -233,15 +230,14 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 					// store the widget
 					Set<String> widgets = sp.getStringSet(getString(R.string.key_widgets), (new HashSet<String>()));
 					if (!widgets.contains(widgetString)) {
+						Log.d(TAG, "add widget: " + widgetString);
 						widgets.add(widgetString);
 					}
-					SharedPreferences.Editor spe = sp.edit();
-					spe.putStringSet(getString(R.string.key_widgets), widgets);
-					spe.commit();
-					sendBroadcast(new Intent(RemoteAuthClientUI.this, RemoteAuthClientWidget.class).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, mAppWidgetId).putExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME, name).putExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS, address));
-					mAppWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID;
+					sp.edit().putStringSet(getString(R.string.key_widgets), widgets).commit();
 					dialog.cancel();
 					RemoteAuthClientUI.this.finish();
+					sendBroadcast(new Intent(RemoteAuthClientUI.this, RemoteAuthClientWidget.class).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, mAppWidgetId).putExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME, name).putExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS, address));
+					mAppWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID;
 				}
 			})
 			.create();
@@ -310,7 +306,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 					// write the device to a tag
 					mInWriteMode = true;
 					mNfcAdapter.enableForegroundDispatch(RemoteAuthClientUI.this,
-							PendingIntent.getActivity(RemoteAuthClientUI.this, 0, new Intent(RemoteAuthClientUI.this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), 0),
+							PendingIntent.getActivity(RemoteAuthClientUI.this, 0, new Intent(RemoteAuthClientUI.this, RemoteAuthClientUI.this.getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), 0),
 							new IntentFilter[] {new IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED)},
 							null);
 					Toast.makeText(RemoteAuthClientUI.this, "Touch tag", Toast.LENGTH_LONG).show();

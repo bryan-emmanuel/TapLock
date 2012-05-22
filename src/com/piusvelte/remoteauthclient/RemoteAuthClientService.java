@@ -11,6 +11,7 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.UUID;
 
+import android.app.PendingIntent;
 import android.app.Service;
 import android.appwidget.AppWidgetManager;
 import android.bluetooth.BluetoothAdapter;
@@ -26,6 +27,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
+import android.widget.RemoteViews;
 
 public class RemoteAuthClientService extends Service {
 	private static final String TAG = "RemoteAuthClientService";
@@ -197,8 +199,78 @@ public class RemoteAuthClientService extends Service {
 	public int onStartCommand(Intent intent, int flags, int startId) {
 		if (intent != null) {
 			String action = intent.getAction();
-			if ((action != null) && action.equals(ACTION_TOGGLE) && intent.hasExtra(EXTRA_DEVICE_ADDRESS)) {
-				requestWrite(intent.getStringExtra(EXTRA_DEVICE_ADDRESS));
+			if (action != null) {
+				if (action.equals(ACTION_TOGGLE) && intent.hasExtra(EXTRA_DEVICE_ADDRESS)) {
+					String address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS);
+					requestWrite(address);
+					//					if (intent.hasExtra(AppWidgetManager.EXTRA_APPWIDGET_ID)) {
+					//						// show progress on widget
+					//						int appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
+					//						RemoteViews views = new RemoteViews(getPackageName(), R.layout.widget);
+					//						if (intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME)) {
+					//							views.setTextViewText(R.id.device_name, intent.getStringExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME));
+					//						} else {
+					//							String name = getString(R.string.widget_device_name);
+					//							SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
+					//							Set<String> widgets = sp.getStringSet(getString(R.string.key_widgets), (new HashSet<String>()));
+					//							for (String widget : widgets) {
+					//								String[] widgetParts = RemoteAuthClientUI.parseDeviceString(widget);
+					//								if (widgetParts[RemoteAuthClientUI.DEVICE_PASSPHRASE].equals(Integer.toString(appWidgetId))) {
+					//									name = widgetParts[RemoteAuthClientUI.DEVICE_NAME];
+					//									break;
+					//								}
+					//							}
+					//							views.setTextViewText(R.id.device_name, name);
+					//						}
+					//						views.setTextViewText(R.id.device_state, "...");
+					//						if (intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS)) {
+					//							views.setOnClickPendingIntent(R.id.widget, PendingIntent.getBroadcast(this, 0, new Intent(this, RemoteAuthClientWidget.class).setAction(RemoteAuthClientService.ACTION_TOGGLE).putExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS, address), 0));
+					//						}
+					//						AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(this);
+					//						appWidgetManager.updateAppWidget(appWidgetId, views);
+					//					}
+				} else if (action.equals(AppWidgetManager.ACTION_APPWIDGET_UPDATE)) {
+					// create widget
+					AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(this);
+					SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE);
+					Set<String> widgets = sp.getStringSet(getString(R.string.key_widgets), (new HashSet<String>()));
+					if (intent.hasExtra(AppWidgetManager.EXTRA_APPWIDGET_ID)) {
+						int appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
+						// check if the widget exists, otherwise add it
+						if (intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME) && intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS)) {
+							String name = intent.getStringExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME);
+							String address = intent.getStringExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS);
+							String widgetString = name + " " + Integer.toString(appWidgetId) + " " + address;
+							// store the widget
+							if (!widgets.contains(widgetString)) {
+								widgets.add(widgetString);
+							}
+							SharedPreferences.Editor spe = sp.edit();
+							spe.putStringSet(getString(R.string.key_widgets), widgets);
+							spe.commit();
+						}
+						appWidgetManager.updateAppWidget(appWidgetId, buildWidget(intent, appWidgetId, widgets));
+					} else if (intent.hasExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)) {
+						int[] appWidgetIds = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS);
+						for (int appWidgetId : appWidgetIds) {
+							appWidgetManager.updateAppWidget(appWidgetId, buildWidget(intent, appWidgetId, widgets));
+						}
+					}
+				} else if (action.equals(AppWidgetManager.ACTION_APPWIDGET_DELETED)) {
+					int appWidgetId = intent.getExtras().getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
+					SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE);
+					Set<String> widgets = sp.getStringSet(getString(R.string.key_widgets), (new HashSet<String>()));
+					Set<String> newWidgets = new HashSet<String>();
+					for (String widget : widgets) {
+						String[] widgetParts = RemoteAuthClientUI.parseDeviceString(widget);
+						if (!widgetParts[RemoteAuthClientUI.DEVICE_PASSPHRASE].equals(Integer.toString(appWidgetId))) {
+							newWidgets.add(widget);
+						}
+					}
+					SharedPreferences.Editor spe = sp.edit();
+					spe.putStringSet(getString(R.string.key_widgets), newWidgets);
+					spe.commit();
+				}
 			}
 		}
 		return START_STICKY;
@@ -216,7 +288,33 @@ public class RemoteAuthClientService extends Service {
 		stopConnectionThreads();
 		setListen(false, null);
 	}
-	
+
+	private RemoteViews buildWidget(Intent intent, int appWidgetId, Set<String> widgets) {
+		RemoteViews views = new RemoteViews(getPackageName(), R.layout.widget);
+		if (intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME)) {
+			views.setTextViewText(R.id.device_name, intent.getStringExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME));
+		} else {
+			String name = getString(R.string.widget_device_name);
+			for (String widget : widgets) {
+				String[] widgetParts = RemoteAuthClientUI.parseDeviceString(widget);
+				if (widgetParts[RemoteAuthClientUI.DEVICE_PASSPHRASE].equals(Integer.toString(appWidgetId))) {
+					name = widgetParts[RemoteAuthClientUI.DEVICE_NAME];
+					break;
+				}
+			}
+			views.setTextViewText(R.id.device_name, name);
+		}
+		if (intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_STATE)) {
+			views.setTextViewText(R.id.device_state, intent.getStringExtra(RemoteAuthClientService.EXTRA_DEVICE_STATE));
+		} else {
+			views.setTextViewText(R.id.device_state, getString(R.string.widget_device_state));
+		}
+		if (intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS)) {
+			views.setOnClickPendingIntent(R.id.widget, PendingIntent.getBroadcast(this, 0, new Intent(this, RemoteAuthClientWidget.class).setAction(RemoteAuthClientService.ACTION_TOGGLE).putExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS, intent.getStringExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS)), 0));
+		}
+		return views;
+	}
+
 	private void requestWrite(String address) {
 		// need to get the passphrase
 		SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
@@ -257,7 +355,7 @@ public class RemoteAuthClientService extends Service {
 			mBtAdapter.enable();
 		}
 	}
-	
+
 	private synchronized void setListen(boolean listen, String passphrase) {
 		if (listen) {
 			mMessage = "start listen";
@@ -452,17 +550,17 @@ public class RemoteAuthClientService extends Service {
 		private MessageDigest mDigest;
 
 		private boolean mConnected = true;
-		
-		private String mAddress;
+
+		//		private String mAddress;
 
 		public ConnectThread(BluetoothSocket socket, String passphrase) {
 			mSocket = socket;
 			mPassphrase = passphrase;
-			mAddress = socket.getRemoteDevice().getAddress();
+			//			mAddress = socket.getRemoteDevice().getAddress();
 		}
 
 		public ConnectThread(BluetoothDevice device, String uuid, String passphrase) {
-			mAddress = device.getAddress();
+			//			mAddress = device.getAddress();
 			mPassphrase = passphrase;
 			BluetoothSocket tmp = null;
 
@@ -541,35 +639,39 @@ public class RemoteAuthClientService extends Service {
 									mHandler.post(mRunnable);
 									write(mPendingState);
 								}
-							} else if ((message.length() > 6) && (message.substring(0, 5).equals("state"))) {
-								// update widgets
-								// need to identify the widgets for this device
-								int state = Integer.parseInt(message.substring(6));
-								String response = getString(R.string.widget_device_state);
-								if (state== RemoteAuthClientUI.STATE_UNLOCK) {
-									response = "lock";
-								} else if (state == RemoteAuthClientUI.STATE_LOCK) {
-									response = "unlock";
-								}
-								Log.d(TAG, "new widget state: " + response);
-								SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
-								Set<String> widgets = sp.getStringSet(getString(R.string.key_widgets), null);
-								Set<Integer> appWidgetIds = new HashSet<Integer>();
-								if (widgets != null) {
-									String name = getString(R.string.widget_device_name);
-									for (String widget : widgets) {
-										String[] widgetParts = RemoteAuthClientUI.parseDeviceString(widget);
-										if (widgetParts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(mAddress)) {
-											name = widgetParts[RemoteAuthClientUI.DEVICE_NAME];
-											Log.d(TAG, "widget name to update: " + name);
-											appWidgetIds.add(Integer.parseInt(widgetParts[RemoteAuthClientUI.DEVICE_PASSPHRASE]));
-											break;
-										}
-									}
-									if (!appWidgetIds.isEmpty()) {
-										sendBroadcast(new Intent(RemoteAuthClientService.this, RemoteAuthClientWidget.class).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, appWidgetIds.toArray()).putExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME, name).putExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS, mAddress).putExtra(RemoteAuthClientService.EXTRA_DEVICE_STATE, response));
-									}
-								}
+								//							} else if ((message.length() > 6) && (message.substring(0, 5).equals("state"))) {
+								//								// update widgets
+								//								// need to identify the widgets for this device
+								//								int state = Integer.parseInt(message.substring(6, 7));
+								//								String response = getString(R.string.widget_device_state);
+								//								if (state== RemoteAuthClientUI.STATE_UNLOCK) {
+								//									response = "lock";
+								//								} else if (state == RemoteAuthClientUI.STATE_LOCK) {
+								//									response = "unlock";
+								//								}
+								//								SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
+								//								Set<String> widgets = sp.getStringSet(getString(R.string.key_widgets), null);
+								//								Set<Integer> appWidgetIds = new HashSet<Integer>();
+								//								if (widgets != null) {
+								//									Log.d(TAG, "stored widgets: " + widgets.size());
+								//									String name = getString(R.string.widget_device_name);
+								//									for (String widget : widgets) {
+								//										String[] widgetParts = RemoteAuthClientUI.parseDeviceString(widget);
+								//										if (widgetParts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(mAddress)) {
+								//											name = widgetParts[RemoteAuthClientUI.DEVICE_NAME];
+								//											appWidgetIds.add(Integer.parseInt(widgetParts[RemoteAuthClientUI.DEVICE_PASSPHRASE]));
+								//											break;
+								//										}
+								//									}
+								//									if (!appWidgetIds.isEmpty()) {
+								//										int[] widgetArray = new int[appWidgetIds.size()];
+								//										int i = 0;
+								//										for (int appWidgetId : appWidgetIds) {
+								//											widgetArray[i++] = appWidgetId;
+								//										}
+								//										sendBroadcast(new Intent(RemoteAuthClientService.this, RemoteAuthClientWidget.class).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, widgetArray).putExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME, name).putExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS, mAddress).putExtra(RemoteAuthClientService.EXTRA_DEVICE_STATE, response));
+								//									}
+								//								}
 							}
 						} else {
 							mConnected = false;

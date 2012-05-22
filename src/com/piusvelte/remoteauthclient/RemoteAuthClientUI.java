@@ -49,15 +49,12 @@ import android.widget.Toast;
 public class RemoteAuthClientUI extends ListActivity implements OnClickListener, ServiceConnection {
 	private static final String TAG = "RemoteAuthClientUI";
 	private Button mBtn_add;
-	//	private CheckBox mChk_sec;
 	private ProgressDialog mProgressDialog;
 	private AlertDialog mDialog;
 	private String[] mDevices;
 	private String[] mPairedDevices = new String[0];
 	private String[] mUnpairedDevices = new String[0];
 	private static final int REMOVE_ID = Menu.FIRST;
-	private String mDevice;
-	private String mPendingTagEvent;
 
 	public static final int STATE_UNLOCK = 0;
 	public static final int STATE_LOCK = 1;
@@ -69,8 +66,6 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 	public static final int DEVICE_NAME = 0;
 	public static final int DEVICE_PASSPHRASE = 1;
 	public static final int DEVICE_ADDRESS = 2;
-
-	private int mAppWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID;
 
 	// NFC
 	private NfcAdapter mNfcAdapter = null;
@@ -129,151 +124,110 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		//NFC
 		mNfcAdapter = NfcAdapter.getDefaultAdapter(getApplicationContext());
 
-		Intent intent = getIntent();
-		if (intent != null) {
-			Bundle extras = intent.getExtras();
-			if (extras != null) {
-				mAppWidgetId = extras.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
-				Intent resultValue = new Intent();
-				resultValue.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, mAppWidgetId);
-				setResult(RESULT_OK, resultValue);
-			}
-		}
 	}
 
 	@Override 
 	public void onNewIntent(Intent intent) {
 		// handle NFC intents
-		Log.d(TAG, "onNewIntent");
-		if (intent != null) {
-			String action = intent.getAction();
-			Log.d(TAG, "action: " + action);
-			Log.d(TAG, "mDevice: " + mDevice);
-			Log.d(TAG, "mInWriteMode: " + mInWriteMode);
-			if (mInWriteMode && action.equals(NfcAdapter.ACTION_TAG_DISCOVERED)) {
-				Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
-				Log.d(TAG, (tag != null ? "has tag" : "tag is null"));
-				if ((tag != null) && (mDevice != null)) {
-					write(tag);
-					mNfcAdapter.disableForegroundDispatch(this);
-					mInWriteMode = false;
-				}
-			} else if (action.equals(NfcAdapter.ACTION_NDEF_DISCOVERED) && intent.hasExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)) {
-				Parcelable[] rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
-				NdefMessage message;
-				if (rawMsgs != null) {
-					// process the first message
-					message = (NdefMessage) rawMsgs[0];
-					// process the first record
-					NdefRecord record = message.getRecords()[0];
-					if (record.getTnf() == NdefRecord.TNF_WELL_KNOWN) {
-						try {
-							byte[] payload = record.getPayload();
-							/*
-							 * payload[0] contains the "Status Byte Encodings" field, per the
-							 * NFC Forum "Text Record Type Definition" section 3.2.1.
-							 *
-							 * bit7 is the Text Encoding Field.
-							 *
-							 * if (Bit_7 == 0): The text is encoded in UTF-8 if (Bit_7 == 1):
-							 * The text is encoded in UTF16
-							 *
-							 * Bit_6 is reserved for future use and must be set to zero.
-							 *
-							 * Bits 5 to 0 are the length of the IANA language code.
-							 */
-							String textEncoding = ((payload[0] & 0200) == 0) ? "UTF-8" : "UTF-16";
-							int languageCodeLength = payload[0] & 0077;
-							mPendingTagEvent = new String(payload, languageCodeLength + 1, payload.length - languageCodeLength - 1, textEncoding);
-						} catch (UnsupportedEncodingException e) {
-							// should never happen unless we get a malformed tag.
-							Log.e(TAG, e.toString());
-						}
-					}
-				}
-			}
-		}
+		setIntent(intent);
 	}
 
 	@Override
 	protected void onResume() {
 		super.onResume();
-		// start the service before binding so that the service stays around for faster future connections
-		startService(new Intent(this, RemoteAuthClientService.class));
-		bindService(new Intent(this, RemoteAuthClientService.class), this, BIND_AUTO_CREATE);
-		final SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
-		Set<String> devices = sp.getStringSet(getString(R.string.key_devices), null);
-		if (devices != null) {
-			mDevices = new String[devices.size()];
-			int d = 0;
-			Iterator<String> iter = devices.iterator();
-			while (iter.hasNext()) {
-				mDevices[d++] = iter.next();
-			}
-		} else {
-			mDevices = new String[0];
-		}
-		setListAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mDevices));
-
-		// check if configuring a widget
-		if (mAppWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-			mDialog = new AlertDialog.Builder(this)
-			.setTitle("Select device for widget")
-			.setItems(mDevices, new DialogInterface.OnClickListener() {
-
-				@Override
-				public void onClick(DialogInterface dialog, int which) {
-					String[] deviceParts = parseDeviceString(mDevices[which]);
-					String name = deviceParts[DEVICE_NAME];
-					String address = deviceParts[DEVICE_ADDRESS];
-					String widgetString = name + " " + Integer.toString(mAppWidgetId) + " " + address;
-					// store the widget
-					Set<String> widgets = sp.getStringSet(getString(R.string.key_widgets), (new HashSet<String>()));
-					if (!widgets.contains(widgetString)) {
-						Log.d(TAG, "add widget: " + widgetString);
-						widgets.add(widgetString);
+		Intent intent = getIntent();
+		if (mInWriteMode) {
+			if (intent != null) {
+				String action = intent.getAction();
+				if (mInWriteMode && action.equals(NfcAdapter.ACTION_TAG_DISCOVERED) && intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME)) {
+					Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+					String name = intent.getStringExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME);
+					Log.d(TAG, "write tag: " + name);
+					if ((tag != null) && (name != null)) {
+						write(tag, name);
+						mNfcAdapter.disableForegroundDispatch(this);
 					}
-					sp.edit().putStringSet(getString(R.string.key_widgets), widgets).commit();
-					dialog.cancel();
-					RemoteAuthClientUI.this.finish();
-					sendBroadcast(new Intent(RemoteAuthClientUI.this, RemoteAuthClientWidget.class).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, mAppWidgetId).putExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME, name).putExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS, address));
-					mAppWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID;
 				}
-			})
-			.create();
-			mDialog.show();
+			}
+			mInWriteMode = false;
+		} else {
+			final SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
+			Set<String> devices = sp.getStringSet(getString(R.string.key_devices), null);
+			if (devices != null) {
+				mDevices = new String[devices.size()];
+				int d = 0;
+				Iterator<String> iter = devices.iterator();
+				while (iter.hasNext()) {
+					mDevices[d++] = iter.next();
+				}
+			} else {
+				mDevices = new String[0];
+			}
+			setListAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mDevices));
+			// start the service before binding so that the service stays around for faster future connections
+			startService(new Intent(this, RemoteAuthClientService.class));
+			bindService(new Intent(this, RemoteAuthClientService.class), this, BIND_AUTO_CREATE);
+
+			// check if configuring a widget
+			if (intent != null) {
+				Bundle extras = intent.getExtras();
+				if (extras != null) {
+					final int appWidgetId = extras.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
+					if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+						mDialog = new AlertDialog.Builder(this)
+						.setTitle("Select device for widget")
+						.setItems(mDevices, new DialogInterface.OnClickListener() {
+
+							@Override
+							public void onClick(DialogInterface dialog, int which) {
+								// set the successful widget result
+								Intent resultValue = new Intent();
+								resultValue.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
+								setResult(RESULT_OK, resultValue);
+								
+								// broadcast the new widget to update
+								String[] deviceParts = parseDeviceString(mDevices[which]);
+								dialog.cancel();
+								RemoteAuthClientUI.this.finish();
+								sendBroadcast(new Intent(RemoteAuthClientUI.this, RemoteAuthClientWidget.class).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId).putExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME, deviceParts[DEVICE_NAME]).putExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS, deviceParts[DEVICE_ADDRESS]));
+							}
+						})
+						.create();
+						mDialog.show();
+					}
+				}
+			}
 		}
 	}
 
 	@Override
 	protected void onPause() {
 		super.onPause();
-		if (mServiceInterface != null) {
-			try {
-				mServiceInterface.stop();
-			} catch (RemoteException e) {
-				Log.e(TAG, e.toString());
+		if (!mInWriteMode) {
+			if (mServiceInterface != null) {
+				try {
+					mServiceInterface.stop();
+				} catch (RemoteException e) {
+					Log.e(TAG, e.toString());
+				}
+				unbindService(this);
 			}
-			unbindService(this);
+			if ((mDialog != null) && mDialog.isShowing()) {
+				mDialog.cancel();
+			}
+			if ((mProgressDialog != null) && mProgressDialog.isShowing()) {
+				mProgressDialog.cancel();
+			}
+			// save devices
+			Set<String> devices = new HashSet<String>();
+			for (String device : mDevices) {
+				devices.add(device);
+			}
+			SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE);
+			SharedPreferences.Editor spe = sp.edit();
+			spe.putStringSet(getString(R.string.key_devices), devices);
+			spe.commit();
 		}
-		mDevice = null;
-		mInWriteMode = false;
-		mNfcAdapter.disableForegroundDispatch(this);
-		if ((mDialog != null) && mDialog.isShowing()) {
-			mDialog.cancel();
-		}
-		if ((mProgressDialog != null) && mProgressDialog.isShowing()) {
-			mProgressDialog.cancel();
-		}
-		// save devices
-		Set<String> devices = new HashSet<String>();
-		for (String device : mDevices) {
-			devices.add(device);
-		}
-		SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
-		SharedPreferences.Editor spe = sp.edit();
-		spe.putStringSet(getString(R.string.key_devices), devices);
-		spe.commit();
 	}
 
 	@Override
@@ -285,7 +239,8 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 			public void onClick(DialogInterface dialog, int which) {
 				int state = Integer.parseInt(getResources().getStringArray(R.array.state_values)[which]);
 				final int deviceIdx = (int) id;
-				mDevice = mDevices[deviceIdx];
+				String device = mDevices[deviceIdx];
+				final String[] parsedDevice = parseDeviceString(device);
 				dialog.cancel();
 				switch (state) {
 				case STATE_UNLOCK:
@@ -294,7 +249,6 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 					// attempt to connect to the device
 					if (mServiceInterface != null) {
 						try {
-							String[] parsedDevice = parseDeviceString(mDevice);
 							//							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(state), mChk_sec.isChecked(), parsedDevice[DEVICE_PASSPHRASE]);
 							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(state), parsedDevice[DEVICE_PASSPHRASE]);
 						} catch (RemoteException e) {
@@ -306,7 +260,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 					// write the device to a tag
 					mInWriteMode = true;
 					mNfcAdapter.enableForegroundDispatch(RemoteAuthClientUI.this,
-							PendingIntent.getActivity(RemoteAuthClientUI.this, 0, new Intent(RemoteAuthClientUI.this, RemoteAuthClientUI.this.getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), 0),
+							PendingIntent.getActivity(RemoteAuthClientUI.this, 0, new Intent(RemoteAuthClientUI.this, RemoteAuthClientUI.this.getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME, parsedDevice[DEVICE_NAME]), 0),
 							new IntentFilter[] {new IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED)},
 							null);
 					Toast.makeText(RemoteAuthClientUI.this, "Touch tag", Toast.LENGTH_LONG).show();
@@ -326,7 +280,6 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 				case STATE_PASSPHRASE:
 					final EditText fld_passphrase = new EditText(RemoteAuthClientUI.this);
 					// parse the existing passphrase
-					final String[] parsedDevice = parseDeviceString(mDevice);
 					fld_passphrase.setText(parsedDevice[DEVICE_PASSPHRASE]);
 					mDialog = new AlertDialog.Builder(RemoteAuthClientUI.this)
 					.setTitle("set passphrase")
@@ -336,9 +289,9 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 						@Override
 						public void onClick(DialogInterface dialog, int which) {
 							dialog.cancel();
-							mDevice = buildDeviceString(new String[]{parsedDevice[DEVICE_NAME], fld_passphrase.getText().toString(), parsedDevice[DEVICE_ADDRESS]});
+							String device = buildDeviceString(new String[]{parsedDevice[DEVICE_NAME], fld_passphrase.getText().toString(), parsedDevice[DEVICE_ADDRESS]});
 							// save the device
-							mDevices[(int) deviceIdx] = mDevice;
+							mDevices[(int) deviceIdx] = device;
 							setListAdapter(new ArrayAdapter<String>(RemoteAuthClientUI.this, android.R.layout.simple_list_item_1, mDevices));
 						}
 
@@ -433,29 +386,6 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		}
 	}
 
-	private void pendingTagEvent() {
-		boolean exists = false;
-		for (String device : mDevices) {
-			String name = parseDeviceString(device)[0];
-			if (name.equals(mPendingTagEvent)) {
-				exists = true;
-				break;
-			}
-		}
-		if (exists) {
-			if (mServiceInterface != null) {
-				try {
-					String[] parsedDevice = parseDeviceString(mDevice);
-					//					mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], "toggle", mChk_sec.isChecked(), parsedDevice[DEVICE_PASSPHRASE]);
-					mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], "toggle", parsedDevice[DEVICE_PASSPHRASE]);
-				} catch (RemoteException e) {
-					Log.e(TAG, e.toString());
-				}
-			}
-		}
-		mPendingTagEvent = null;
-	}
-
 	protected static String[] parseDeviceString(String device) {
 		String[] parsedDevice = new String[3];
 		int nameEnd = device.indexOf(" ");
@@ -518,15 +448,14 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 			devices[mDevices.length] = newDevice;
 			mDevices = devices;
 			setListAdapter(new ArrayAdapter<String>(RemoteAuthClientUI.this, android.R.layout.simple_list_item_1, mDevices));
-			mDevice = newDevice;
 		}
 	}
 
-	private void write(Tag tag) {
+	private void write(Tag tag, String deviceName) {
 		// write the device and address
 		String lang = "en";
 		// don't write the passphrase!
-		byte[] textBytes = parseDeviceString(mDevice)[0].getBytes();
+		byte[] textBytes = deviceName.getBytes();
 		byte[] langBytes = null;
 		int langLength = 0;
 		try {
@@ -597,8 +526,62 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 				Log.e(TAG, e.toString());
 			}
 		}
-		if (mPendingTagEvent != null) {
-			pendingTagEvent();
+		Intent intent = getIntent();
+		if (intent != null) {
+			String action = intent.getAction();
+			if ((action != null) && action.equals(NfcAdapter.ACTION_NDEF_DISCOVERED) && intent.hasExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)) {
+				Parcelable[] rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
+				NdefMessage message;
+				if (rawMsgs != null) {
+					// process the first message
+					message = (NdefMessage) rawMsgs[0];
+					// process the first record
+					NdefRecord record = message.getRecords()[0];
+					if (record.getTnf() == NdefRecord.TNF_WELL_KNOWN) {
+						try {
+							byte[] payload = record.getPayload();
+							/*
+							 * payload[0] contains the "Status Byte Encodings" field, per the
+							 * NFC Forum "Text Record Type Definition" section 3.2.1.
+							 *
+							 * bit7 is the Text Encoding Field.
+							 *
+							 * if (Bit_7 == 0): The text is encoded in UTF-8 if (Bit_7 == 1):
+							 * The text is encoded in UTF16
+							 *
+							 * Bit_6 is reserved for future use and must be set to zero.
+							 *
+							 * Bits 5 to 0 are the length of the IANA language code.
+							 */
+							String textEncoding = ((payload[0] & 0200) == 0) ? "UTF-8" : "UTF-16";
+							int languageCodeLength = payload[0] & 0077;
+							String taggedDeviceName = new String(payload, languageCodeLength + 1, payload.length - languageCodeLength - 1, textEncoding);
+
+							String[] parsedDevice = null;
+							for (String device : mDevices) {
+								String deviceName = parseDeviceString(device)[0];
+								if (deviceName.equals(taggedDeviceName)) {
+									parsedDevice = parseDeviceString(device);
+									break;
+								}
+							}
+							if (parsedDevice != null) {
+								if (mServiceInterface != null) {
+									try {
+										//					mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], "toggle", mChk_sec.isChecked(), parsedDevice[DEVICE_PASSPHRASE]);
+										mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], "toggle", parsedDevice[DEVICE_PASSPHRASE]);
+									} catch (RemoteException e) {
+										Log.e(TAG, e.toString());
+									}
+								}
+							}
+						} catch (UnsupportedEncodingException e) {
+							// should never happen unless we get a malformed tag.
+							Log.e(TAG, e.toString());
+						}
+					}
+				}
+			}
 		}
 	}
 

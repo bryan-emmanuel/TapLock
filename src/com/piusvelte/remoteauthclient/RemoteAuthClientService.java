@@ -238,15 +238,19 @@ public class RemoteAuthClientService extends Service {
 						int appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
 						// check if the widget exists, otherwise add it
 						if (intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME) && intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS)) {
+							Set<String> newWidgets = new HashSet<String>();
+							for (String widget : widgets) {
+								newWidgets.add(widget);
+							}
 							String name = intent.getStringExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME);
 							String address = intent.getStringExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS);
 							String widgetString = name + " " + Integer.toString(appWidgetId) + " " + address;
 							// store the widget
-							if (!widgets.contains(widgetString)) {
-								widgets.add(widgetString);
+							if (!newWidgets.contains(widgetString)) {
+								newWidgets.add(widgetString);
 							}
 							SharedPreferences.Editor spe = sp.edit();
-							spe.putStringSet(getString(R.string.key_widgets), widgets);
+							spe.putStringSet(getString(R.string.key_widgets), newWidgets);
 							spe.commit();
 						}
 						appWidgetManager.updateAppWidget(appWidgetId, buildWidget(intent, appWidgetId, widgets));
@@ -337,14 +341,18 @@ public class RemoteAuthClientService extends Service {
 		setRequest(REQUEST_WRITE);
 		if (mBtAdapter.isEnabled()) {
 			if ((mConnectThread != null) && mConnectThread.isConnected(address)) {
-				// Create temporary object
-				ConnectThread r;
-				// Synchronize a copy of the ConnectedThread
-				synchronized (this) {
-					r = mConnectThread;
+				if (mConnectThread.hasStreams()) {
+					// Create temporary object
+					ConnectThread r;
+					// Synchronize a copy of the ConnectedThread
+					synchronized (this) {
+						r = mConnectThread;
+					}
+					// Perform the write unsynchronized
+					r.write(state);
+				} else {
+					setPendingRequest(state, address, uuid, passphrase);
 				}
-				// Perform the write unsynchronized
-				r.write(state);
 			} else {
 				setPendingRequest(state, address, uuid, passphrase);
 				connectDevice(address, uuid, passphrase, null);
@@ -381,7 +389,6 @@ public class RemoteAuthClientService extends Service {
 		// Cancel any thread attempting to make a connection
 		if (mConnectThread != null) {
 			mConnectThread.cancel();
-			mConnectThread = null;
 		}
 
 	}
@@ -437,7 +444,6 @@ public class RemoteAuthClientService extends Service {
 		if ((mConnectThread == null) || (!mConnectThread.isConnected(address))) {
 			if (mConnectThread != null) {
 				mConnectThread.cancel();
-				mConnectThread = null;
 			}
 			mMessage = "connectDevice: " + address;
 			mHandler.post(mRunnable);
@@ -449,7 +455,6 @@ public class RemoteAuthClientService extends Service {
 				mConnectThread.start();
 			} else {
 				mConnectThread.cancel();
-				mConnectThread = null;
 			}
 		} else {
 			mMessage = "already connected: " + address;
@@ -467,7 +472,6 @@ public class RemoteAuthClientService extends Service {
 			mConnectThread.start();
 		} else {
 			mConnectThread.cancel();
-			mConnectThread = null;
 		}
 	}
 
@@ -757,6 +761,10 @@ public class RemoteAuthClientService extends Service {
 				} catch (IOException e) {
 					Log.e(TAG, e.toString());
 				}
+				mSocket = null;
+			}
+			synchronized (RemoteAuthClientService.this) {
+				mConnectThread = null;
 			}
 			// fallback to listening
 			setListen(true, mPassphrase);

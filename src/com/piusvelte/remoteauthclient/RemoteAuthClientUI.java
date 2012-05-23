@@ -144,7 +144,68 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 					String name = intent.getStringExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME);
 					Log.d(TAG, "write tag: " + name);
 					if ((tag != null) && (name != null)) {
-						write(tag, name);
+						// write the device and address
+						String lang = "en";
+						// don't write the passphrase!
+						byte[] textBytes = name.getBytes();
+						byte[] langBytes = null;
+						int langLength = 0;
+						try {
+							langBytes = lang.getBytes("US-ASCII");
+							langLength = langBytes.length;
+						} catch (UnsupportedEncodingException e) {
+							Log.e(TAG, e.toString());
+						}
+						int textLength = textBytes.length;
+						byte[] payload = new byte[1 + langLength + textLength];
+
+						// set status byte (see NDEF spec for actual bits)
+						payload[0] = (byte) langLength;
+
+						// copy langbytes and textbytes into payload
+						if (langBytes != null) {
+							System.arraycopy(langBytes, 0, payload, 1, langLength);
+						}
+						System.arraycopy(textBytes, 0, payload, 1 + langLength, textLength);
+						NdefRecord record = new NdefRecord(NdefRecord.TNF_WELL_KNOWN, 
+								NdefRecord.RTD_TEXT, 
+								new byte[0], 
+								payload);
+						NdefMessage message = new NdefMessage(new NdefRecord[]{record, NdefRecord.createApplicationRecord("com.piusvelte.remoteauthclient")});
+
+						// Get an instance of Ndef for the tag.
+						Ndef ndef = Ndef.get(tag);
+						if (ndef != null) {
+							try {
+								ndef.connect();
+								if (ndef.isWritable()) {
+									ndef.writeNdefMessage(message);
+								}
+								ndef.close();
+								Log.d(TAG, "tag written");
+								Toast.makeText(this, "tag written", Toast.LENGTH_LONG).show();
+							} catch (IOException e) {
+								Log.d(TAG, e.toString());
+							} catch (FormatException e) {
+								Log.d(TAG, e.toString());
+							}
+						} else {
+							Log.d(TAG, "no ndef, format");
+							NdefFormatable format = NdefFormatable.get(tag);
+							if (format != null) {
+								try {
+									format.connect();
+									format.format(message);
+									format.close();
+									Log.d(TAG, "tag written");
+									Toast.makeText(getApplicationContext(), "tag written", Toast.LENGTH_LONG);
+								} catch (IOException e) {
+									Log.d(TAG, e.toString());
+								} catch (FormatException e) {
+									Log.d(TAG, e.toString());
+								}
+							}
+						}
 						mNfcAdapter.disableForegroundDispatch(this);
 					}
 				}
@@ -451,71 +512,6 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		}
 	}
 
-	private void write(Tag tag, String deviceName) {
-		// write the device and address
-		String lang = "en";
-		// don't write the passphrase!
-		byte[] textBytes = deviceName.getBytes();
-		byte[] langBytes = null;
-		int langLength = 0;
-		try {
-			langBytes = lang.getBytes("US-ASCII");
-			langLength = langBytes.length;
-		} catch (UnsupportedEncodingException e) {
-			Log.e(TAG, e.toString());
-		}
-		int textLength = textBytes.length;
-		byte[] payload = new byte[1 + langLength + textLength];
-
-		// set status byte (see NDEF spec for actual bits)
-		payload[0] = (byte) langLength;
-
-		// copy langbytes and textbytes into payload
-		if (langBytes != null) {
-			System.arraycopy(langBytes, 0, payload, 1, langLength);
-		}
-		System.arraycopy(textBytes, 0, payload, 1 + langLength, textLength);
-		NdefRecord record = new NdefRecord(NdefRecord.TNF_WELL_KNOWN, 
-				NdefRecord.RTD_TEXT, 
-				new byte[0], 
-				payload);
-		NdefMessage message = new NdefMessage(new NdefRecord[]{record, NdefRecord.createApplicationRecord("com.piusvelte.remoteauthclient")});
-
-		// Get an instance of Ndef for the tag.
-		Ndef ndef = Ndef.get(tag);
-		if (ndef != null) {
-			try {
-				ndef.connect();
-				if (ndef.isWritable()) {
-					ndef.writeNdefMessage(message);
-				}
-				ndef.close();
-				Log.d(TAG, "tag written");
-				Toast.makeText(getApplicationContext(), "tag written", Toast.LENGTH_LONG);
-			} catch (IOException e) {
-				Log.d(TAG, e.toString());
-			} catch (FormatException e) {
-				Log.d(TAG, e.toString());
-			}
-		} else {
-			Log.d(TAG, "no ndef, format");
-			NdefFormatable format = NdefFormatable.get(tag);
-			if (format != null) {
-				try {
-					format.connect();
-					format.format(message);
-					format.close();
-					Log.d(TAG, "tag written");
-					Toast.makeText(getApplicationContext(), "tag written", Toast.LENGTH_LONG);
-				} catch (IOException e) {
-					Log.d(TAG, e.toString());
-				} catch (FormatException e) {
-					Log.d(TAG, e.toString());
-				}
-			}
-		}
-	}
-
 	@Override
 	public void onServiceConnected(ComponentName name, IBinder binder) {
 		mServiceInterface = IRemoteAuthClientService.Stub.asInterface(binder);
@@ -530,6 +526,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		if (intent != null) {
 			String action = intent.getAction();
 			if ((action != null) && action.equals(NfcAdapter.ACTION_NDEF_DISCOVERED) && intent.hasExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)) {
+				Log.d(TAG, "service connected, NDEF_DISCOVERED");
 				Parcelable[] rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
 				NdefMessage message;
 				if (rawMsgs != null) {
@@ -556,7 +553,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 							String textEncoding = ((payload[0] & 0200) == 0) ? "UTF-8" : "UTF-16";
 							int languageCodeLength = payload[0] & 0077;
 							String taggedDeviceName = new String(payload, languageCodeLength + 1, payload.length - languageCodeLength - 1, textEncoding);
-
+							Log.d(TAG, "taggedDeviceName: " + taggedDeviceName);
 							String[] parsedDevice = null;
 							for (String device : mDevices) {
 								String deviceName = parseDeviceString(device)[0];
@@ -568,8 +565,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 							if (parsedDevice != null) {
 								if (mServiceInterface != null) {
 									try {
-										//					mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], "toggle", mChk_sec.isChecked(), parsedDevice[DEVICE_PASSPHRASE]);
-										mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], "toggle", parsedDevice[DEVICE_PASSPHRASE]);
+										mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(STATE_TOGGLE), parsedDevice[DEVICE_PASSPHRASE]);
 									} catch (RemoteException e) {
 										Log.e(TAG, e.toString());
 									}

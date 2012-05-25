@@ -28,10 +28,10 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
 import android.widget.RemoteViews;
+import android.widget.Toast;
 
 public class RemoteAuthClientService extends Service {
 	private static final String TAG = "RemoteAuthClientService";
-	private static final boolean sDebug = false;
 	public static final String ACTION_TOGGLE = "com.piusvelte.remoteAuthClient.ACTION_TOGGLE";
 	public static final String EXTRA_DEVICE_ADDRESS = "com.piusvelte.remoteAuthClient.EXTRA_DEVICE_ADDRESS";
 	public static final String EXTRA_DEVICE_NAME = "com.piusvelte.remoteAuthClient.EXTRA_DEVICE_NAME";
@@ -55,14 +55,15 @@ public class RemoteAuthClientService extends Service {
 	protected String mMessage = "";
 	protected final Handler mHandler = new Handler();
 	protected final Runnable mRunnable = new Runnable() {
-		@SuppressWarnings("unused")
 		public void run() {
-			if (sDebug && (mUIInterface != null)) {
+			if (mUIInterface != null) {
 				try {
 					mUIInterface.setMessage(mMessage);
 				} catch (RemoteException e) {
 					Log.e(TAG, e.toString());
 				}
+			} else {
+				Toast.makeText(RemoteAuthClientService.this, mMessage, Toast.LENGTH_LONG).show();
 			}
 			Log.d(TAG, mMessage);
 		}
@@ -366,8 +367,6 @@ public class RemoteAuthClientService extends Service {
 
 	private synchronized void setListen(boolean listen, String passphrase) {
 		if (listen) {
-			mMessage = "start listen";
-			mHandler.post(mRunnable);
 			if (mInsecureAcceptThread != null) {
 				mInsecureAcceptThread.cancel();
 				mInsecureAcceptThread = null;
@@ -376,8 +375,6 @@ public class RemoteAuthClientService extends Service {
 			mInsecureAcceptThread.start();
 			mBtAdapter.startDiscovery();
 		} else {
-			mMessage = "stop listen";
-			mHandler.post(mRunnable);
 			if (mInsecureAcceptThread != null) {
 				mInsecureAcceptThread.cancel();
 				mInsecureAcceptThread = null;
@@ -445,8 +442,6 @@ public class RemoteAuthClientService extends Service {
 			if (mConnectThread != null) {
 				mConnectThread.cancel();
 			}
-			mMessage = "connectDevice: " + address;
-			mHandler.post(mRunnable);
 			if (device == null) {
 				device = getDevice(address);
 			}
@@ -456,9 +451,6 @@ public class RemoteAuthClientService extends Service {
 			} else {
 				mConnectThread.cancel();
 			}
-		} else {
-			mMessage = "already connected: " + address;
-			mHandler.post(mRunnable);
 		}
 	}
 
@@ -468,7 +460,6 @@ public class RemoteAuthClientService extends Service {
 
 		mConnectThread = new ConnectThread(socket, passphrase);
 		if (mConnectThread.hasStreams()) {
-			Log.d(TAG, "has streams");
 			mConnectThread.start();
 		} else {
 			mConnectThread.cancel();
@@ -510,8 +501,6 @@ public class RemoteAuthClientService extends Service {
 
 				// If a connection was accepted
 				if (socket != null) {
-					mMessage = "connected from peer";
-					mHandler.post(mRunnable);
 					synchronized (RemoteAuthClientService.this) {
 						//						if (mConnectedThread != null) {
 						if (mConnectThread != null) {
@@ -588,8 +577,6 @@ public class RemoteAuthClientService extends Service {
 
 			try {
 				mSocket.connect();
-				mMessage = "connected";
-				mHandler.post(mRunnable);
 			} catch (IOException e) {
 				mMessage = "connection attempt failed: " + e.toString();
 				mHandler.post(mRunnable);
@@ -612,7 +599,8 @@ public class RemoteAuthClientService extends Service {
 					tmpIn = mSocket.getInputStream();
 					tmpOut = mSocket.getOutputStream();
 				} catch (IOException e) {
-					Log.e(TAG, "temp sockets not created", e);
+					mMessage = "sockets not created: " + e.toString();
+					mHandler.post(mRunnable);
 				}
 
 				mInStream = tmpIn;
@@ -631,16 +619,10 @@ public class RemoteAuthClientService extends Service {
 						if (readBytes != -1) {
 							// construct a string from the valid bytes in the buffer
 							String message = new String(buffer, 0, readBytes);
-							mMessage = "message: " + message;
-							mHandler.post(mRunnable);
 							// listen for challenge, then process a response
 							if ((message.length() > 10) && (message.substring(0, 9).equals("challenge"))) {
 								mChallenge = message.substring(10);
-								mMessage = "set challenge: " + mChallenge;
-								mHandler.post(mRunnable);
 								if (hasPendingRequest()) {
-									mMessage = "pending request, state: " + mPendingState;
-									mHandler.post(mRunnable);
 									write(mPendingState);
 								}
 								//							} else if ((message.length() > 6) && (message.substring(0, 5).equals("state"))) {
@@ -702,18 +684,17 @@ public class RemoteAuthClientService extends Service {
 					try {
 						mDigest.update((challenge + mPassphrase + state).getBytes("UTF-8"));
 						String request = new BigInteger(1, mDigest.digest()).toString(16);
-						mMessage = "write state: " + state + ", challenge: " + challenge + ", request: " + request;
-						mHandler.post(mRunnable);
 						mOutStream.write(request.getBytes());
 						clearPendingRequest();
 					} catch (IOException e) {
-						Log.e(TAG, "Exception during write", e);
-						// need to get a new challenge
-						try {
-							mOutStream.write(("challenge").getBytes());
-						} catch (IOException e1) {
-							Log.e(TAG, "Exception during write", e1);
-						}
+						mMessage = "write error: " + e.toString();
+						mHandler.post(mRunnable);
+					}
+					// need to get a new challenge
+					try {
+						mOutStream.write(("challenge").getBytes());
+					} catch (IOException e) {
+						Log.e(TAG, "get challenge error: ", e);
 					}
 				}
 			} else {
@@ -721,7 +702,7 @@ public class RemoteAuthClientService extends Service {
 				try {
 					mOutStream.write(("challenge").getBytes());
 				} catch (IOException e) {
-					Log.e(TAG, "Exception during write", e);
+					Log.e(TAG, "get challenge error: ", e);
 				}
 			}
 			if (getRequest() == REQUEST_WRITE) {

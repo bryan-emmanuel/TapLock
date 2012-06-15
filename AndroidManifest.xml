@@ -48,6 +48,11 @@
 			<meta-data android:name="android.appwidget.provider"
 				android:resource="@xml/widget_1x1" />
 		</receiver>
+		<receiver android:name=".RemoteAuthClientReceiver">
+		    <intent-filter>
+		        <action android:name="android.bluetooth.adapter.action.STATE_CHANGED" />
+		    </intent-filter>
+		</receiver>
     </application>
 
 </manifest>

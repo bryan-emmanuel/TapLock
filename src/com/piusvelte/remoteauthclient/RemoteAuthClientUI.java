@@ -111,6 +111,18 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 			}
 		}
 
+		@Override
+		public void setStateFinished() throws RemoteException {
+			Intent intent = getIntent();
+			if (intent != null) {
+				String action = intent.getAction();
+				if ((action != null) && action.equals(NfcAdapter.ACTION_NDEF_DISCOVERED) && intent.hasExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)) {
+					// this was an NFC event, finish the activity
+					RemoteAuthClientUI.this.finish();
+				}
+			}
+		}
+
 	};
 
 	@Override
@@ -311,7 +323,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 					if (mServiceInterface != null) {
 						try {
 							//							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(state), mChk_sec.isChecked(), parsedDevice[DEVICE_PASSPHRASE]);
-							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(state), parsedDevice[DEVICE_PASSPHRASE]);
+							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(state));
 						} catch (RemoteException e) {
 							Log.e(TAG, e.toString());
 						}
@@ -565,7 +577,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 							if (parsedDevice != null) {
 								if (mServiceInterface != null) {
 									try {
-										mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(STATE_TOGGLE), parsedDevice[DEVICE_PASSPHRASE]);
+										mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(STATE_TOGGLE));
 									} catch (RemoteException e) {
 										Log.e(TAG, e.toString());
 									}

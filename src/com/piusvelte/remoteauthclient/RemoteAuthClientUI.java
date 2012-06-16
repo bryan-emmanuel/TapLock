@@ -82,32 +82,34 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 
 		@Override
 		public void setUnpairedDevice(String device) throws RemoteException {
-			// new unpaired device
-			String[] newDevices = new String[mUnpairedDevices.length + 1];
-			for (int i = 0, l = mUnpairedDevices.length; i < l; i++) {
-				newDevices[i] = mUnpairedDevices[i];
+			if ((mProgressDialog != null) && mProgressDialog.isShowing()) {
+				// new unpaired device
+				String[] newDevices = new String[mUnpairedDevices.length + 1];
+				for (int i = 0, l = mUnpairedDevices.length; i < l; i++) {
+					newDevices[i] = mUnpairedDevices[i];
+				}
+				newDevices[mUnpairedDevices.length] = device;
+				mUnpairedDevices = newDevices;
 			}
-			newDevices[mUnpairedDevices.length] = device;
-			mUnpairedDevices = newDevices;
 		}
 
 		@Override
 		public void setDiscoveryFinished() throws RemoteException {
 			if ((mProgressDialog != null) && mProgressDialog.isShowing()) {
 				mProgressDialog.cancel();
-			}
-			if (mUnpairedDevices.length > 0) {
-				mDialog = new AlertDialog.Builder(RemoteAuthClientUI.this)
-				.setItems(mUnpairedDevices, new DialogInterface.OnClickListener() {					
-					@Override
-					public void onClick(DialogInterface dialog, int which) {
-						addNewDevice(mUnpairedDevices[which]);
-					}
-				})
-				.create();
-				mDialog.show();
-			} else {
-				Toast.makeText(getApplicationContext(), "no devices discovered", Toast.LENGTH_LONG).show();
+				if (mUnpairedDevices.length > 0) {
+					mDialog = new AlertDialog.Builder(RemoteAuthClientUI.this)
+					.setItems(mUnpairedDevices, new DialogInterface.OnClickListener() {					
+						@Override
+						public void onClick(DialogInterface dialog, int which) {
+							addNewDevice(mUnpairedDevices[which]);
+						}
+					})
+					.create();
+					mDialog.show();
+				} else {
+					Toast.makeText(getApplicationContext(), "no devices discovered", Toast.LENGTH_LONG).show();
+				}
 			}
 		}
 
@@ -257,7 +259,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 								Intent resultValue = new Intent();
 								resultValue.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
 								setResult(RESULT_OK, resultValue);
-								
+
 								// broadcast the new widget to update
 								String[] deviceParts = parseDeviceString(mDevices[which]);
 								dialog.cancel();

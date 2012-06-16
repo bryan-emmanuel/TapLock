@@ -17,12 +17,9 @@ import android.app.Service;
 import android.appwidget.AppWidgetManager;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-//import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.os.Handler;
@@ -40,17 +37,14 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 	public static final String EXTRA_DEVICE_STATE = "com.piusvelte.remoteAuthClient.EXTRA_DEVICE_STATE";
 	private BluetoothAdapter mBtAdapter;
 	private HashMap<String, ConnectThread> mConnectThreads = new HashMap<String, ConnectThread>();
-	private String mPendingState;
-	private String mPendingAddress;
-	private String mPendingUuid;
-	private static final int REQUEST_NONE = 0;
-	private static final int REQUEST_WRITE = 1;
-	private static final int REQUEST_DISCOVERY = 2;
-	private int REQUEST = REQUEST_NONE;
+	private HashMap<String, String> mRequestQueue = new HashMap<String, String>();
+	//	private String mPendingState;
+	//	private String mPendingAddress;
+	//	private String mPendingUuid;
 	private boolean mStartedBT = false;
 	private String[] mDevices = new String[0];
 	// Unique UUID for this application
-//	private static final String sSPD = "RemoteAuth";
+	//	private static final String sSPD = "RemoteAuth";
 	private static final UUID sRemoteAuthServerUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 
 	protected String mMessage = "";
@@ -91,7 +85,6 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 
 		@Override
 		public void requestDiscovery() throws RemoteException {
-			setRequest(REQUEST_DISCOVERY);
 			if (mBtAdapter.isEnabled()) {
 				// If we're already discovering, stop it
 				if (mBtAdapter.isDiscovering()) {
@@ -112,33 +105,52 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 		}
 	};
 
-	// The BroadcastReceiver that listens for discovered devices and
-	// changes the title when discovery is finished
-	private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
-		@Override
-		public void onReceive(Context context, Intent intent) {
-			String action = intent.getAction();
+	@Override
+	public void onCreate() {
+		super.onCreate();
+		onSharedPreferenceChanged(getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE), getString(R.string.key_devices));
+		mBtAdapter = BluetoothAdapter.getDefaultAdapter();
+	}
 
-			if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
-				int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.STATE_OFF);
-				if (state == BluetoothAdapter.STATE_TURNING_OFF) {
-					stopConnectionThreads();
-					if (mUIInterface == null) {
-						RemoteAuthClientService.this.stopSelf();
+	@Override
+	public int onStartCommand(Intent intent, int flags, int startId) {
+		if (intent != null) {
+			String action = intent.getAction();
+			if (action != null) {
+				if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
+					int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.STATE_OFF);
+					if (state == BluetoothAdapter.STATE_ON) {
+						if (!mBtAdapter.isDiscovering()) {
+							mBtAdapter.startDiscovery();
+						}
+					} else if (state == BluetoothAdapter.STATE_TURNING_OFF) {
+						stopConnectionThreads();
+						if (mUIInterface == null) {
+							RemoteAuthClientService.this.stopSelf();
+						}
 					}
-				}
-				// When discovery finds a device
-			} else if (BluetoothDevice.ACTION_FOUND.equals(action)) {
-				// Get the BluetoothDevice object from the Intent
-				BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-				int request = getRequest();
-				switch (request) {
-				case REQUEST_WRITE:
-					if (hasPendingRequest() && (device.getAddress().equals(mPendingAddress))) {
-						connectDevice(mPendingAddress, mPendingUuid, device);
+					// When discovery finds a device
+				} else if (BluetoothDevice.ACTION_FOUND.equals(action)) {
+					// Get the BluetoothDevice object from the Intent
+					BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+					String address = device.getAddress();
+					if (!mConnectThreads.containsKey(address)) {
+						// not currently connect, check if stored
+						for (String d : mDevices) {
+							String[] parts = RemoteAuthClientUI.parseDeviceString(d);
+							if (parts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(address)) {
+								// connect to stored device
+								ConnectThread connectThread = new ConnectThread(device);
+								if (connectThread.hasSocket()) {
+									connectThread.start();
+									mConnectThreads.put(address, connectThread);
+								} else {
+									connectThread.cancel();
+								}
+								break;
+							}
+						}
 					}
-					break;
-				case REQUEST_DISCOVERY:
 					// If it's already paired, skip it, because it's been listed already
 					if (device.getBondState() != BluetoothDevice.BOND_BONDED) {
 						if (mUIInterface != null) {
@@ -149,65 +161,13 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 							}
 						}
 					}
-					break;
-				default:
-					break;
-				}
-			} else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
-				int request = getRequest();
-				switch (request) {
-				case REQUEST_WRITE:
-					// even if a pending request exists, it should have been triggered in the discovery phase
-					setRequest(REQUEST_NONE);
-					break;
-				case REQUEST_DISCOVERY:
+				} else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
 					if (mUIInterface != null) {
 						try {
 							mUIInterface.setDiscoveryFinished();
 						} catch (RemoteException e) {
 							Log.e(TAG, e.toString());
 						}
-					}
-					setRequest(REQUEST_NONE);
-					break;
-				default:
-					break;
-				}
-			}
-		}
-	};
-
-	@Override
-	public void onCreate() {
-		super.onCreate();
-		onSharedPreferenceChanged(getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE), getString(R.string.key_devices));
-		mBtAdapter = BluetoothAdapter.getDefaultAdapter();
-		IntentFilter filter = new IntentFilter();
-		filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
-		filter.addAction(BluetoothDevice.ACTION_FOUND);
-		filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
-		registerReceiver(mReceiver, filter);
-	}
-
-	@Override
-	public int onStartCommand(Intent intent, int flags, int startId) {
-		if (intent != null) {
-			String action = intent.getAction();
-			if (action != null) {
-				if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
-					stopConnectionThreads();
-					int request = getRequest();
-					switch (request) {
-					case REQUEST_WRITE:
-						if (hasPendingRequest()) {
-							connectDevice(mPendingAddress, mPendingUuid, null);
-						}
-						break;
-					case REQUEST_DISCOVERY:
-						mBtAdapter.startDiscovery();
-						break;
-					default:
-						break;
 					}
 				} else if (action.equals(ACTION_TOGGLE) && intent.hasExtra(EXTRA_DEVICE_ADDRESS)) {
 					String address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS);
@@ -297,9 +257,7 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 	@Override
 	public void onDestroy() {
 		super.onDestroy();
-		unregisterReceiver(mReceiver);
 		stopConnectionThreads();
-		//		setListen(false, null);
 	}
 
 	private RemoteViews buildWidget(Intent intent, int appWidgetId, Set<String> widgets) {
@@ -329,40 +287,53 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 	}
 
 	private void requestWrite(String address, String state) {
-		String uuid = sRemoteAuthServerUUID.toString();
-		setRequest(REQUEST_WRITE);
+		Log.d(TAG,"requestWrite:" + address + "," + state);
 		if (mBtAdapter.isEnabled()) {
 			if (mConnectThreads.containsKey(address)) {
 				ConnectThread connectThread;
 				synchronized (this) {
 					connectThread = mConnectThreads.get(address);
-					if ((connectThread != null) && connectThread.isConnected(address)) {
+					if (connectThread.isConnected(address)) {
 						if (connectThread.hasStreams()) {
-							// Perform the write unsynchronized
 							connectThread.write(state);
+							return;
+						}
+					}
+					// queue
+					mRequestQueue.put(address, state);
+					// attempt reconnect
+					connectThread.cancel();
+					mConnectThreads.remove(address);
+					BluetoothDevice device = null;
+					Set<BluetoothDevice> devices = mBtAdapter.getBondedDevices();
+					Iterator<BluetoothDevice> iter = devices.iterator();
+					while (iter.hasNext() && (device == null)) {
+						BluetoothDevice d = iter.next();
+						if (d.getAddress().equals(address)) {
+							device = d;
+						}
+					}
+					if (device == null) {
+						device = mBtAdapter.getRemoteDevice(address);
+					}
+					if (device != null) {
+						connectThread = new ConnectThread(device);
+						if (connectThread.hasSocket()) {
+							connectThread.start();
+							mConnectThreads.put(address, connectThread);
 						} else {
-							setPendingRequest(state, address, uuid);
+							connectThread.cancel();
 						}
 					} else {
-						setPendingRequest(state, address, uuid);
-						connectDevice(address, uuid, null);
+						mBtAdapter.startDiscovery();
 					}
 				}
-			} else {
-				setPendingRequest(state, address, uuid);
-				connectDevice(address, uuid, null);
 			}
+			return;
 		} else {
-			setPendingRequest(state, address, uuid);
+			mRequestQueue.put(address, state);
 			mStartedBT = true;
 			mBtAdapter.enable();
-		}
-	}
-
-	private void stopConnectionThread(String address) {
-		if (mConnectThreads.containsKey(address)) {
-			mConnectThreads.get(address).cancel();
-			mConnectThreads.remove(address);
 		}
 	}
 
@@ -378,74 +349,6 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 
 	}
 
-	public BluetoothDevice getDevice(String address) {
-		BluetoothDevice device = null;
-		Set<BluetoothDevice> devices = mBtAdapter.getBondedDevices();
-		Iterator<BluetoothDevice> iter = devices.iterator();
-		while (iter.hasNext() && (device == null)) {
-			BluetoothDevice d = iter.next();
-			if (d.getAddress().equals(address)) {
-				device = d;
-			}
-		}
-		if (device == null) {
-			device = mBtAdapter.getRemoteDevice(address);
-		}
-		return device;
-	}
-
-	public void setPendingRequest(String state, String address, String uuid) {
-		mPendingState = state;
-		mPendingAddress = address;
-		mPendingUuid = uuid;
-	}
-
-	public boolean hasPendingRequest() {
-		return (mPendingState != null) && (mPendingAddress != null) && (mPendingUuid != null);
-	}
-
-	public synchronized int getRequest() {
-		return REQUEST;
-	}
-
-	public synchronized void setRequest(int request) {
-		REQUEST = request;
-	}
-
-	public synchronized void connectDevice(String address, String uuid, BluetoothDevice device) {
-		// don't reconnect if already connected
-		if (mConnectThreads.containsKey(address)) {
-			ConnectThread connectThread = mConnectThreads.get(address);
-			if (!connectThread.isConnected(address)) {
-				connectThread.cancel();
-				mConnectThreads.remove(address);
-				if (device == null) {
-					device = getDevice(address);
-					connectThread = new ConnectThread(device, uuid);
-					if (connectThread.hasSocket()) {
-						connectThread.start();
-						mConnectThreads.put(address, connectThread);
-					} else {
-						connectThread.cancel();
-					}
-				}
-			}
-		}
-	}
-
-	public synchronized void connected(BluetoothSocket socket, BluetoothDevice device) {
-		String address = device.getAddress();
-		stopConnectionThread(address);
-
-		ConnectThread connectThread = new ConnectThread(socket);
-		if (connectThread.hasStreams()) {
-			connectThread.start();
-			mConnectThreads.put(address, connectThread);
-		} else {
-			connectThread.cancel();
-		}
-	}
-
 	private class ConnectThread extends Thread {
 		private BluetoothSocket mSocket;
 		private InputStream mInStream;
@@ -456,21 +359,25 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 
 		private boolean mConnected = true;
 
-		public ConnectThread(BluetoothSocket socket) {
-			mSocket = socket;
-		}
+		private String mAddress;
 
-		public ConnectThread(BluetoothDevice device, String uuid) {
+		//		public ConnectThread(BluetoothSocket socket) {
+		//			mSocket = socket;
+		//			mAddress = socket.getRemoteDevice().getAddress();
+		//		}
+
+		public ConnectThread(BluetoothDevice device) {
 			BluetoothSocket tmp = null;
 
 			// Get a BluetoothSocket for a connection with the
 			// given BluetoothDevice
 			try {
-				tmp = device.createInsecureRfcommSocketToServiceRecord(UUID.fromString(uuid));
+				tmp = device.createInsecureRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
 			} catch (IOException e) {
 				Log.e(TAG, e.toString());
 			}
 			mSocket = tmp;
+			mAddress = device.getAddress();
 		}
 
 		public boolean hasSocket() {
@@ -526,8 +433,8 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 							// listen for challenge, then process a response
 							if ((message.length() > 10) && (message.substring(0, 9).equals("challenge"))) {
 								mChallenge = message.substring(10);
-								if (hasPendingRequest()) {
-									write(mPendingState);
+								if (mRequestQueue.containsKey(mAddress)) {
+									write(mRequestQueue.get(mAddress));
 								}
 								//							} else if ((message.length() > 6) && (message.substring(0, 5).equals("state"))) {
 								//								// update widgets
@@ -607,9 +514,9 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 							mDigest.update((challenge + passphrase + state).getBytes("UTF-8"));
 							String request = new BigInteger(1, mDigest.digest()).toString(16);
 							mOutStream.write(request.getBytes());
-							mPendingState = null;
-							mPendingAddress = null;
-							mPendingUuid = null;
+							if (mRequestQueue.containsKey(mAddress)) {
+								mRequestQueue.remove(mAddress);
+							}
 							mMessage = null;
 							mHandler.post(mRunnable);
 						} catch (IOException e) {
@@ -631,9 +538,6 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 						Log.e(TAG, "get challenge error: ", e);
 					}
 				}
-			}
-			if (getRequest() == REQUEST_WRITE) {
-				setRequest(REQUEST_NONE);
 			}
 		}
 

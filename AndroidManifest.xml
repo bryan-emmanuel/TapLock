@@ -52,6 +52,12 @@
 		    <intent-filter>
 		        <action android:name="android.bluetooth.adapter.action.STATE_CHANGED" />
 		    </intent-filter>
+		    <intent-filter>
+		        <action android:name="android.bluetooth.device.action.FOUND" />
+		    </intent-filter>
+		    <intent-filter>
+		        <action android:name="android.bluetooth.adapter.action.DISCOVERY_FINISHED" />
+		    </intent-filter>
 		</receiver>
     </application>
 

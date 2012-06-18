@@ -38,9 +38,6 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 	private BluetoothAdapter mBtAdapter;
 	private HashMap<String, ConnectThread> mConnectThreads = new HashMap<String, ConnectThread>();
 	private HashMap<String, String> mRequestQueue = new HashMap<String, String>();
-	//	private String mPendingState;
-	//	private String mPendingAddress;
-	//	private String mPendingUuid;
 	private boolean mStartedBT = false;
 	private String[] mDevices = new String[0];
 	// Unique UUID for this application
@@ -61,10 +58,10 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 				} catch (RemoteException e) {
 					Log.e(TAG, e.toString());
 				}
-			} else {
+			} else if (mMessage != null) {
 				Toast.makeText(RemoteAuthClientService.this, mMessage, Toast.LENGTH_LONG).show();
+				Log.d(TAG, mMessage);
 			}
-			Log.d(TAG, mMessage);
 		}
 	};
 
@@ -110,13 +107,20 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 		super.onCreate();
 		onSharedPreferenceChanged(getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE), getString(R.string.key_devices));
 		mBtAdapter = BluetoothAdapter.getDefaultAdapter();
+		Log.d(TAG, "onCreate");
 	}
 
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
+		Log.d(TAG, "onStartCommand, " + mConnectThreads.size() + " connect threads running");
 		if (intent != null) {
 			String action = intent.getAction();
-			if (action != null) {
+			if (action == null) {
+				if (mBtAdapter.isEnabled() && (!mBtAdapter.isDiscovering())) {
+					Log.d(TAG, "have a look around");
+					mBtAdapter.startDiscovery();
+				}
+			} else {
 				if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
 					int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.STATE_OFF);
 					if (state == BluetoothAdapter.STATE_ON) {
@@ -134,17 +138,23 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 					// Get the BluetoothDevice object from the Intent
 					BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
 					String address = device.getAddress();
+					Log.d(TAG, "found device: " + address);
 					if (!mConnectThreads.containsKey(address)) {
+						Log.d(TAG, "not connect to: " + address + ", but I know " + mDevices.length + " devices, so check it out");
 						// not currently connect, check if stored
 						for (String d : mDevices) {
 							String[] parts = RemoteAuthClientUI.parseDeviceString(d);
+							Log.d(TAG, "I know " + parts[RemoteAuthClientUI.DEVICE_ADDRESS]);
 							if (parts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(address)) {
+								Log.d(TAG, "I know this device, connect...");
 								// connect to stored device
 								ConnectThread connectThread = new ConnectThread(device);
 								if (connectThread.hasSocket()) {
+									Log.d(TAG, "got socket, start thread");
 									connectThread.start();
 									mConnectThreads.put(address, connectThread);
 								} else {
+									Log.d(TAG, "socket failed");
 									connectThread.cancel();
 								}
 								break;
@@ -251,6 +261,7 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 
 	@Override
 	public IBinder onBind(Intent arg0) {
+		Log.d(TAG, "onBind");
 		return mServiceInterface;
 	}
 
@@ -299,6 +310,7 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 							return;
 						}
 					}
+					Log.d(TAG, "not connected, queue the reqest, and attempt to reconnect");
 					// queue
 					mRequestQueue.put(address, state);
 					// attempt reconnect
@@ -331,6 +343,7 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 			}
 			return;
 		} else {
+			Log.d(TAG, "BT is disabled, queue the request and start BT");
 			mRequestQueue.put(address, state);
 			mStartedBT = true;
 			mBtAdapter.enable();
@@ -361,11 +374,6 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 
 		private String mAddress;
 
-		//		public ConnectThread(BluetoothSocket socket) {
-		//			mSocket = socket;
-		//			mAddress = socket.getRemoteDevice().getAddress();
-		//		}
-
 		public ConnectThread(BluetoothDevice device) {
 			BluetoothSocket tmp = null;
 
@@ -385,7 +393,7 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 		}
 
 		public void run() {
-			Log.d(TAG, "socket connect");
+			Log.d(TAG, "run, attempt connect");
 			mBtAdapter.cancelDiscovery();
 
 			try {

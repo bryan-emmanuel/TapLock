@@ -239,9 +239,6 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 				mDevices = new String[0];
 			}
 			setListAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mDevices));
-			// start the service before binding so that the service stays around for faster future connections
-			startService(new Intent(this, RemoteAuthClientService.class));
-			bindService(new Intent(this, RemoteAuthClientService.class), this, BIND_AUTO_CREATE);
 
 			// check if configuring a widget
 			if (intent != null) {
@@ -273,6 +270,10 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 				}
 			}
 		}
+		Log.d(TAG, "start service");
+		// start the service before binding so that the service stays around for faster future connections
+		startService(new Intent(this, RemoteAuthClientService.class));
+		bindService(new Intent(this, RemoteAuthClientService.class), this, BIND_AUTO_CREATE);
 	}
 
 	@Override

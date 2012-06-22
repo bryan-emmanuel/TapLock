@@ -18,8 +18,10 @@ import android.appwidget.AppWidgetManager;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.os.Handler;
@@ -101,27 +103,48 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 			}
 		}
 	};
+	
+	private BroadcastReceiver mScreenReceiver = new BroadcastReceiver() {
+
+		@Override
+		public void onReceive(Context context, Intent intent) {
+			startService(intent.setClass(context, RemoteAuthClientService.class));
+		}
+		
+	};
 
 	@Override
 	public void onCreate() {
 		super.onCreate();
 		onSharedPreferenceChanged(getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE), getString(R.string.key_devices));
 		mBtAdapter = BluetoothAdapter.getDefaultAdapter();
-		Log.d(TAG, "onCreate");
+		IntentFilter filter = new IntentFilter();
+		filter.addAction(Intent.ACTION_SCREEN_OFF);
+		filter.addAction(Intent.ACTION_SCREEN_ON);
+		registerReceiver(mScreenReceiver, filter);
 	}
 
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
-		Log.d(TAG, "onStartCommand, " + mConnectThreads.size() + " connect threads running");
 		if (intent != null) {
 			String action = intent.getAction();
-			if (action == null) {
-				if (mBtAdapter.isEnabled() && (!mBtAdapter.isDiscovering())) {
-					Log.d(TAG, "have a look around");
-					mBtAdapter.startDiscovery();
+			if ((action == null) || Intent.ACTION_SCREEN_ON.equals(action)) {
+				if (mBtAdapter.isEnabled()) {
+					if (!mBtAdapter.isDiscovering()) {
+						mBtAdapter.startDiscovery();
+					}
+				} else {
+					if (mStartedBT) {
+						mBtAdapter.enable();
+					}
 				}
 			} else {
-				if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
+				if (Intent.ACTION_SCREEN_OFF.equals(action)) {
+					stopConnectionThreads();
+					if (mStartedBT) {
+						mBtAdapter.disable();
+					}
+				} else if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
 					int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.STATE_OFF);
 					if (state == BluetoothAdapter.STATE_ON) {
 						if (!mBtAdapter.isDiscovering()) {
@@ -138,19 +161,14 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 					// Get the BluetoothDevice object from the Intent
 					BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
 					String address = device.getAddress();
-					Log.d(TAG, "found device: " + address);
 					if (!mConnectThreads.containsKey(address)) {
-						Log.d(TAG, "not connect to: " + address + ", but I know " + mDevices.length + " devices, so check it out");
 						// not currently connect, check if stored
 						for (String d : mDevices) {
 							String[] parts = RemoteAuthClientUI.parseDeviceString(d);
-							Log.d(TAG, "I know " + parts[RemoteAuthClientUI.DEVICE_ADDRESS]);
 							if (parts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(address)) {
-								Log.d(TAG, "I know this device, connect...");
 								// connect to stored device
 								ConnectThread connectThread = new ConnectThread(device);
 								if (connectThread.hasSocket()) {
-									Log.d(TAG, "got socket, start thread");
 									connectThread.start();
 									mConnectThreads.put(address, connectThread);
 								} else {
@@ -261,7 +279,6 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 
 	@Override
 	public IBinder onBind(Intent arg0) {
-		Log.d(TAG, "onBind");
 		return mServiceInterface;
 	}
 
@@ -269,6 +286,13 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 	public void onDestroy() {
 		super.onDestroy();
 		stopConnectionThreads();
+		if (mScreenReceiver != null) {
+			unregisterReceiver(mScreenReceiver);
+			mScreenReceiver = null;
+		}
+		if (mStartedBT) {
+			mBtAdapter.disable();
+		}
 	}
 
 	private RemoteViews buildWidget(Intent intent, int appWidgetId, Set<String> widgets) {

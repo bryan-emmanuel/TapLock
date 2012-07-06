@@ -9,6 +9,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.UUID;
 
@@ -127,13 +128,15 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 		if (intent != null) {
 			String action = intent.getAction();
 			if ((action == null) || Intent.ACTION_SCREEN_ON.equals(action)) {
-				if (mBtAdapter.isEnabled()) {
-					if (!mBtAdapter.isDiscovering())
-						mBtAdapter.startDiscovery();
-				} else {
-					if (mStartedBT)
-						mBtAdapter.enable();
-				}
+				//				if (mBtAdapter.isEnabled()) {
+				//					if (!mBtAdapter.isDiscovering())
+				//						mBtAdapter.startDiscovery();
+				//				} else {
+				//					if (mStartedBT)
+				//						mBtAdapter.enable();
+				//				}
+				if (!mBtAdapter.isEnabled() && mStartedBT)
+					mBtAdapter.enable();
 			} else {
 				if (Intent.ACTION_SCREEN_OFF.equals(action)) {
 					stopConnectionThreads();
@@ -141,9 +144,26 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 						mBtAdapter.disable();
 				} else if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
 					int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.STATE_OFF);
+					//					if (state == BluetoothAdapter.STATE_ON) {
+					//						if (!mBtAdapter.isDiscovering())
+					//							mBtAdapter.startDiscovery();
+					//					} else if (state == BluetoothAdapter.STATE_TURNING_OFF) {
+					//						stopConnectionThreads();
+					//						if (mUIInterface == null)
+					//							RemoteAuthClientService.this.stopSelf();
+					//					}
 					if (state == BluetoothAdapter.STATE_ON) {
-						if (!mBtAdapter.isDiscovering())
-							mBtAdapter.startDiscovery();
+						// if pending...
+						synchronized (sRequestLock) {
+							if (!mRequestQueue.isEmpty()) {
+								Log.d(TAG, "bt on, pending requests");
+								Iterator<Entry<String, String>> requests = mRequestQueue.entrySet().iterator();
+								while (requests.hasNext()) {
+									Entry<String, String> request = requests.next();
+									requestWrite(request.getKey(), request.getValue());
+								}
+							}
+						}
 					} else if (state == BluetoothAdapter.STATE_TURNING_OFF) {
 						stopConnectionThreads();
 						if (mUIInterface == null)
@@ -353,8 +373,8 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 				synchronized (sSocketLock) {
 					BluetoothDevice device = mBtAdapter.getRemoteDevice(mAddress);
 					Log.d(TAG, "...got device, get socket...");
-//					mSocket = device.createInsecureRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
-					mSocket = device.createRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
+					mSocket = device.createInsecureRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
+//					mSocket = device.createRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
 					Log.d(TAG, "...got socket, connect...");
 					mSocket.connect();
 					Log.d(TAG, "...check if connected...");

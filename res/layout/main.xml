@@ -11,24 +11,25 @@
         android:layout_alignParentTop="true"
         android:text="@string/btn_add" />
     
-<!--     <CheckBox -->
-<!--         android:id="@+id/chk_sec" -->
-<!--         android:layout_width="fill_parent" -->
-<!--         android:layout_height="wrap_content" -->
-<!--         android:text="@string/chk_sec" -->
-<!--         android:layout_below="@id/btn_add" /> -->
+    <TextView 
+        android:id="@+id/fld_info"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"/>
 
     <ListView
         android:id="@android:id/list"
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
-        android:layout_below="@id/btn_add" />
-
+        android:layout_below="@id/btn_add"
+        android:layout_above="@id/fld_info" />
+    
     <TextView
         android:id="@android:id/empty"
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
         android:layout_below="@id/btn_add"
+        android:layout_above="@id/fld_info"
         android:text="@string/no_devices" />
 
 </RelativeLayout>

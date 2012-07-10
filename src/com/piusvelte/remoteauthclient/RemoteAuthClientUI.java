@@ -44,11 +44,13 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.AdapterView.AdapterContextMenuInfo;
+import android.widget.TextView;
 import android.widget.Toast;
 
 public class RemoteAuthClientUI extends ListActivity implements OnClickListener, ServiceConnection {
 	private static final String TAG = "RemoteAuthClientUI";
 	private Button mBtn_add;
+	private TextView mFld_info;
 	private ProgressDialog mProgressDialog;
 	private AlertDialog mDialog;
 	private String[] mDevices;
@@ -77,7 +79,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		@Override
 		public void setMessage(String message) throws RemoteException {
 			Log.d(TAG, message);
-			Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
+			mFld_info.setText(message);
 		}
 
 		@Override
@@ -134,7 +136,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		registerForContextMenu(getListView());
 		mBtn_add = ((Button) findViewById(R.id.btn_add));
 		mBtn_add.setOnClickListener(this);
-		//		mChk_sec = ((CheckBox) findViewById(R.id.chk_sec));
+		mFld_info = ((TextView) findViewById(R.id.fld_info));
 		//NFC
 		mNfcAdapter = NfcAdapter.getDefaultAdapter(getApplicationContext());
 

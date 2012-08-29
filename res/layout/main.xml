@@ -10,26 +10,32 @@
         android:layout_height="wrap_content"
         android:layout_alignParentTop="true"
         android:text="@string/btn_add" />
-    
-    <TextView 
-        android:id="@+id/fld_info"
+
+    <ScrollView
+        android:id="@+id/scroll_info"
         android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"/>
+        android:layout_height="128dp"
+        android:scrollbars="vertical"
+        android:layout_alignParentBottom="true" >
+
+        <TextView
+            android:id="@+id/fld_info"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content" />
+    </ScrollView>
 
     <ListView
         android:id="@android:id/list"
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
-        android:layout_below="@id/btn_add"
-        android:layout_above="@id/fld_info" />
-    
+        android:layout_above="@id/scroll_info"
+        android:layout_below="@id/btn_add" />
+
     <TextView
         android:id="@android:id/empty"
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
-        android:layout_below="@id/btn_add"
-        android:layout_above="@id/fld_info"
+        android:layout_above="@id/scroll_info"
         android:text="@string/no_devices" />
 
 </RelativeLayout>

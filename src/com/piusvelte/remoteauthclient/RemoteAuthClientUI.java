@@ -9,7 +9,6 @@ import java.util.Set;
 import android.app.AlertDialog;
 import android.app.ListActivity;
 import android.app.PendingIntent;
-import android.app.ProgressDialog;
 import android.appwidget.AppWidgetManager;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -51,11 +50,9 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 	private static final String TAG = "RemoteAuthClientUI";
 	private Button mBtn_add;
 	private TextView mFld_info;
-	private ProgressDialog mProgressDialog;
 	private AlertDialog mDialog;
 	private String[] mDevices;
 	private String[] mPairedDevices = new String[0];
-	private String[] mUnpairedDevices = new String[0];
 	private static final int REMOVE_ID = Menu.FIRST;
 
 	public static final int STATE_UNLOCK = 0;
@@ -78,41 +75,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 
 		@Override
 		public void setMessage(String message) throws RemoteException {
-			Log.d(TAG, message);
-			mFld_info.setText(message);
-		}
-
-		@Override
-		public void setUnpairedDevice(String device) throws RemoteException {
-			if ((mProgressDialog != null) && mProgressDialog.isShowing()) {
-				// new unpaired device
-				String[] newDevices = new String[mUnpairedDevices.length + 1];
-				for (int i = 0, l = mUnpairedDevices.length; i < l; i++) {
-					newDevices[i] = mUnpairedDevices[i];
-				}
-				newDevices[mUnpairedDevices.length] = device;
-				mUnpairedDevices = newDevices;
-			}
-		}
-
-		@Override
-		public void setDiscoveryFinished() throws RemoteException {
-			if ((mProgressDialog != null) && mProgressDialog.isShowing()) {
-				mProgressDialog.cancel();
-				if (mUnpairedDevices.length > 0) {
-					mDialog = new AlertDialog.Builder(RemoteAuthClientUI.this)
-					.setItems(mUnpairedDevices, new DialogInterface.OnClickListener() {					
-						@Override
-						public void onClick(DialogInterface dialog, int which) {
-							addNewDevice(mUnpairedDevices[which]);
-						}
-					})
-					.create();
-					mDialog.show();
-				} else {
-					Toast.makeText(getApplicationContext(), "no devices discovered", Toast.LENGTH_LONG).show();
-				}
-			}
+			mFld_info.setText(message + "\n" + mFld_info.getText().toString());
 		}
 
 		@Override
@@ -272,7 +235,6 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 				}
 			}
 		}
-		Log.d(TAG, "start service");
 		// start the service before binding so that the service stays around for faster future connections
 		startService(new Intent(this, RemoteAuthClientService.class));
 		bindService(new Intent(this, RemoteAuthClientService.class), this, BIND_AUTO_CREATE);
@@ -292,9 +254,6 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 			}
 			if ((mDialog != null) && mDialog.isShowing()) {
 				mDialog.cancel();
-			}
-			if ((mProgressDialog != null) && mProgressDialog.isShowing()) {
-				mProgressDialog.cancel();
 			}
 			// save devices
 			Set<String> devices = new HashSet<String>();
@@ -432,35 +391,16 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 					}
 
 				})
-				.setPositiveButton(getString(R.string.btn_scan), new DialogInterface.OnClickListener() {
+				.setPositiveButton(getString(R.string.btn_bt_settings), new DialogInterface.OnClickListener() {
 					@Override
 					public void onClick(DialogInterface dialog, int which) {
-						mUnpairedDevices = new String[0];
-						if (mServiceInterface != null) {
-							try {
-								mServiceInterface.requestDiscovery();
-							} catch (RemoteException e) {
-								Log.e(TAG, e.toString());
-							}
-						}
+						startActivity(new Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS));
 					}
 				})
 				.create();
 				mDialog.show();
-			} else {
-				mUnpairedDevices = new String[0];
-				if (mServiceInterface != null) {
-					try {
-						mServiceInterface.requestDiscovery();
-						mProgressDialog = new ProgressDialog(this);
-						mProgressDialog.setMessage("scanning for new devices");
-						mProgressDialog.setCancelable(true);
-						mProgressDialog.show();
-					} catch (RemoteException e) {
-						Log.e(TAG, e.toString());
-					}
-				}
-			}
+			} else
+				startActivity(new Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS));
 		}
 	}
 

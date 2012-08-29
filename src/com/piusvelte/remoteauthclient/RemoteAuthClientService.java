@@ -36,10 +36,10 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 	public static final String EXTRA_DEVICE_NAME = "com.piusvelte.remoteAuthClient.EXTRA_DEVICE_NAME";
 	public static final String EXTRA_DEVICE_STATE = "com.piusvelte.remoteAuthClient.EXTRA_DEVICE_STATE";
 	private BluetoothAdapter mBtAdapter;
-//	private AcceptThread mAcceptThread;
+	//	private AcceptThread mAcceptThread;
 	private ConnectThread mConnectThread;
-	private String mRequestAddress;
-	private String mRequestState;
+	private String mQueueAddress;
+	private String mQueueState;
 	private boolean mStartedBT = false;
 	private String mDeviceFound = null;
 	private String[] mDevices = new String[0];
@@ -49,7 +49,8 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 	protected final Handler mHandler = new Handler();
 	protected final Runnable mRunnable = new Runnable() {
 		public void run() {
-			Log.d(TAG, mMessage);
+			if (mMessage != null)
+				Log.d(TAG, mMessage);
 			if (mUIInterface != null) {
 				try {
 					if (mMessage != null)
@@ -75,19 +76,6 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 		@Override
 		public void write(String address, String state) throws RemoteException {
 			requestWrite(address, state);
-		}
-
-		@Override
-		public void requestDiscovery() throws RemoteException {
-			if (mBtAdapter.isEnabled()) {
-				// If we're already discovering, stop it
-				if (mBtAdapter.isDiscovering())
-					mBtAdapter.cancelDiscovery();
-				// Request discover from BluetoothAdapter
-				mBtAdapter.startDiscovery();
-			} else {
-				mBtAdapter.enable();
-			}
 		}
 
 		@Override
@@ -130,16 +118,16 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 			} else {
 				if (Intent.ACTION_SCREEN_OFF.equals(action)) {
 					// bt doesn't connect quickly, so try to leave connections in place
-//					stopThreads();
-//					if (mStartedBT)
-//						mBtAdapter.disable();
+					//					stopThreads();
+					//					if (mStartedBT)
+					//						mBtAdapter.disable();
 				} else if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
 					int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.STATE_OFF);
 					if (state == BluetoothAdapter.STATE_ON) {
 						// if pending...
 						if (mStartedBT) {
-							if ((mRequestAddress != null) && (mRequestState != null))
-								requestWrite(mRequestAddress, mRequestState);
+							if ((mQueueAddress != null) && (mQueueState != null))
+								requestWrite(mQueueAddress, mQueueState);
 						} else if (!mBtAdapter.isDiscovering())
 							mBtAdapter.startDiscovery();
 					} else if (state == BluetoothAdapter.STATE_TURNING_OFF) {
@@ -157,38 +145,30 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 						for (String d : mDevices) {
 							String[] parts = RemoteAuthClientUI.parseDeviceString(d);
 							if (parts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(address)) {
-								mDeviceFound = address;
+								// if queued
+								if ((mQueueAddress != null) && mQueueAddress.equals(address) && (mQueueState != null))
+									mDeviceFound = address;
 								break;
-							}
-						}
-					} else {
-						// notify of unbonded device
-						if (mUIInterface != null) {
-							try {
-								mUIInterface.setUnpairedDevice(device.getName() + " " + device.getAddress());
-							} catch (RemoteException e) {
-								Log.e(TAG, e.toString());
 							}
 						}
 					}
 				} else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
 					if (mDeviceFound != null) {
 						if (mConnectThread == null) {
-							mConnectThread = new ConnectThread(mDeviceFound);
+							mConnectThread = new ConnectThread(mDeviceFound, mQueueState);
+							mMessage = "discovery finished, new start connect thread";
+							mHandler.post(mRunnable);
 							mConnectThread.start();
 						} else if (!mConnectThread.isConnected()) {
 							mConnectThread.shutdown();
-							mConnectThread = new ConnectThread(mDeviceFound);
+							mConnectThread = new ConnectThread(mDeviceFound, mQueueState);
+							mMessage = "discovery finished, renew start connect thread";
+							mHandler.post(mRunnable);
 							mConnectThread.start();
 						}
 						mDeviceFound = null;
-					}
-					if (mUIInterface != null) {
-						try {
-							mUIInterface.setDiscoveryFinished();
-						} catch (RemoteException e) {
-							Log.e(TAG, e.toString());
-						}
+						mQueueAddress = null;
+						mQueueState = null;
 					}
 				} else if (action.equals(ACTION_TOGGLE) && intent.hasExtra(EXTRA_DEVICE_ADDRESS)) {
 					String address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS);
@@ -292,22 +272,21 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 				}
 				mConnectThread.shutdown();
 			}
-			// queue
-			mRequestAddress = address;
-			mRequestState = state;
 			// start listen
-//			if (mAcceptThread != null)
-//				mAcceptThread.shutdown();
+			//			if (mAcceptThread != null)
+			//				mAcceptThread.shutdown();
 			//			mAcceptThread = new AcceptThread();
 			//			mAcceptThread.start();
 			// attempt connect
-			mConnectThread = new ConnectThread(address);
+			mConnectThread = new ConnectThread(address, state);
+			mMessage = "requestWrite start connect thread";
+			mHandler.post(mRunnable);
 			mConnectThread.start();
 		} else {
 			mMessage = "BT is disabled, queue the request and start BT";
 			mHandler.post(mRunnable);
-			mRequestAddress = address;
-			mRequestState = state;
+			mQueueAddress = address;
+			mQueueState = state;
 			mStartedBT = true;
 			mBtAdapter.enable();
 		}
@@ -316,8 +295,8 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 	private synchronized void stopThreads() {
 		if (mConnectThread != null)
 			mConnectThread.shutdown();
-//		if (mAcceptThread != null)
-//			mAcceptThread.shutdown();
+		//		if (mAcceptThread != null)
+		//			mAcceptThread.shutdown();
 	}
 
 	private class ConnectThread extends Thread {
@@ -329,17 +308,19 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 		private MessageDigest mDigest;
 
 		private String mAddress;
+		private String mState;
 
-		public ConnectThread(String address) {
+		public ConnectThread(String address, String state) {
 			mMessage = "new connect thread, get socket...";
 			mHandler.post(mRunnable);
 			mAddress = address;
+			mState = state;
 			BluetoothDevice device = mBtAdapter.getRemoteDevice(mAddress);
 			BluetoothSocket tmp = null;
 			try {
 				//				tmp = device.createInsecureRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
 				tmp = device.createRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
-				mMessage = "...got socket";
+				mMessage = "...got socket...";
 				mHandler.post(mRunnable);
 			} catch (IOException e) {
 				Log.e(TAG, e.getMessage());
@@ -347,28 +328,32 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 			mSocket = tmp;
 		}
 
-//		public ConnectThread(BluetoothSocket socket) {
-//			mMessage = "new connect thread with socket";
-//			mHandler.post(mRunnable);
-//			mSocket = socket;
-//			mAddress = mSocket.getRemoteDevice().getAddress();
-//		}
+		//		public ConnectThread(BluetoothSocket socket) {
+		//			mMessage = "new connect thread with socket";
+		//			mHandler.post(mRunnable);
+		//			mSocket = socket;
+		//			mAddress = mSocket.getRemoteDevice().getAddress();
+		//		}
 
 		public void run() {
-			mMessage = "start connect thread...";
+			mMessage = "...run connect thread...";
 			mHandler.post(mRunnable);
 			if (mSocket != null) {
-				mMessage = "...is connected?";
+				mMessage = "...check connection...";
 				mHandler.post(mRunnable);
 				if (!mSocket.isConnected()) {
-					mMessage = "...no, connect...";
+					mMessage = "...not connected, cancel discovery...";
 					mHandler.post(mRunnable);
-					while (mBtAdapter.isDiscovering())
+					while (mBtAdapter.isDiscovering()) {
 						mBtAdapter.cancelDiscovery();
+					}
+					mMessage = "...connect...";
+					mHandler.post(mRunnable);
 					try {
 						mSocket.connect();
 					} catch (IOException e) {
-						Log.e(TAG, e.getMessage());
+						mMessage = "...connect failed...";
+						mHandler.post(mRunnable);
 						shutdown();
 						return;
 					}
@@ -380,38 +365,31 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 					mInStream = mSocket.getInputStream();
 					mOutStream = mSocket.getOutputStream();
 				} catch (IOException e) {
-					Log.e(TAG, e.getMessage());
+					mMessage = "...streams failed...";
+					mHandler.post(mRunnable);
 					shutdown();
 					return;
 				}
-				if (isConnected()) {
-					while (isReadable()) {
-						if ((mRequestAddress != null) && mRequestAddress.equals(mAddress) && (mRequestState != null))
-							write(mRequestState);
-					}
+				byte[] buffer = new byte[1024];
+				int readBytes = -1;
+				try {
+					readBytes = mInStream.read(buffer);
+				} catch (IOException e1) {
+					mMessage = "...connection lost...";
+					mHandler.post(mRunnable);
+				}
+				if (readBytes != -1) {
+					// construct a string from the valid bytes in the buffer
+					String message = new String(buffer, 0, readBytes);
+					mMessage = "message: " + message;
+					mHandler.post(mRunnable);
+					// listen for challenge, then process a response
+					if ((message.length() > 10) && (message.substring(0, 9).equals("challenge")))
+						mChallenge = message.substring(10);
+					write(mState);
 				}
 			}
 			shutdown();
-		}
-
-		private boolean isReadable() {
-			byte[] buffer = new byte[1024];
-			int readBytes = -1;
-			try {
-				readBytes = mInStream.read(buffer);
-			} catch (IOException e) {
-				Log.e(TAG, e.toString());
-				return false;
-			}
-			if (readBytes != -1) {
-				// construct a string from the valid bytes in the buffer
-				String message = new String(buffer, 0, readBytes);
-				// listen for challenge, then process a response
-				if ((message.length() > 10) && (message.substring(0, 9).equals("challenge")))
-					mChallenge = message.substring(10);
-				return true;
-			} else
-				return false;
 		}
 
 		public void write(String state) {
@@ -427,6 +405,8 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 							if (parts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(address)) {
 								if ((passphrase = parts[RemoteAuthClientUI.DEVICE_PASSPHRASE]) != null) {
 									String challenge = mChallenge;
+									mMessage = "challenge: " + challenge;
+									mHandler.post(mRunnable);
 									// the challenge is stale after it's used
 									mChallenge = null;
 									if (challenge != null) {
@@ -439,21 +419,21 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 										}
 										if (mDigest != null) {
 											mDigest.reset();
+											Log.d(TAG,"hash: " + challenge + passphrase + state);
 											try {
 												mDigest.update((challenge + passphrase + state).getBytes("UTF-8"));
 												String request = new BigInteger(1, mDigest.digest()).toString(16);
 												mOutStream.write(request.getBytes());
-												mRequestAddress = null;
-												mRequestState = null;
 												mMessage = null;
 												mHandler.post(mRunnable);
 											} catch (IOException e) {
 												Log.e(TAG, e.getMessage());
 											}
-											requestChallenge();
+//											requestChallenge();
 										}
-									} else
-										requestChallenge();
+//									} else {
+//										requestChallenge();
+									}
 								}
 								break;
 							}
@@ -463,16 +443,16 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 			}
 		}
 
-		public void requestChallenge() {
-			try {
-				mOutStream.write(("challenge").getBytes());
-			} catch (IOException e) {
-				Log.e(TAG, "get challenge error: ", e);
-			}
-		}
+//		public void requestChallenge() {
+//			try {
+//				mOutStream.write(("challenge").getBytes());
+//			} catch (IOException e) {
+//				Log.e(TAG, "get challenge error: ", e);
+//			}
+//		}
 
 		public boolean isConnected() {
-			return (mSocket != null) && (mInStream != null) && (mOutStream != null);
+			return (mSocket != null) && mSocket.isConnected() && (mInStream != null) && (mOutStream != null);
 		}
 
 		public boolean isConnected(String address) {
@@ -483,10 +463,8 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 		}
 
 		public void shutdown() {
-			mMessage = "connect thread shutdown";
+			mMessage = "...connect thread shutdown";
 			mHandler.post(mRunnable);
-			mRequestAddress = null;
-			mRequestState = null;
 			mInStream = null;
 			mOutStream = null;
 			if (mSocket != null) {
@@ -501,45 +479,45 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 		}
 	}
 
-//	private class AcceptThread extends Thread {
-//		private final BluetoothServerSocket mServerSocket;
-//
-//		public AcceptThread() {
-//			BluetoothServerSocket tmp = null;
-//			// Create a new listening server socket
-//			try {
-//				tmp = mBtAdapter.listenUsingInsecureRfcommWithServiceRecord("RemoteAuthClient", sRemoteAuthServerUUID);
-//			} catch (IOException e) {
-//				Log.e(TAG, e.getMessage());
-//			}
-//			mServerSocket = tmp;
-//		}
-//
-//		public void run() {
-//			BluetoothSocket socket = null;
-//			while ((mAcceptThread != null) && ((mConnectThread == null) || !mConnectThread.isConnected())) {
-//				try {
-//					socket = mServerSocket.accept();
-//				} catch (IOException e) {
-//					Log.e(TAG, e.getMessage());
-//					break;
-//				}
-//				if (socket != null) {
-//					synchronized (RemoteAuthClientService.this) {
-//						if (mConnectThread != null)
-//							mConnectThread.shutdown();
-//						mConnectThread = new ConnectThread(socket);
-//						mConnectThread.start();
-//					}
-//				}
-//			}
-//			shutdown();
-//		}
-//
-//		public void shutdown() {
-//			mAcceptThread = null;
-//		}
-//	}
+	//	private class AcceptThread extends Thread {
+	//		private final BluetoothServerSocket mServerSocket;
+	//
+	//		public AcceptThread() {
+	//			BluetoothServerSocket tmp = null;
+	//			// Create a new listening server socket
+	//			try {
+	//				tmp = mBtAdapter.listenUsingInsecureRfcommWithServiceRecord("RemoteAuthClient", sRemoteAuthServerUUID);
+	//			} catch (IOException e) {
+	//				Log.e(TAG, e.getMessage());
+	//			}
+	//			mServerSocket = tmp;
+	//		}
+	//
+	//		public void run() {
+	//			BluetoothSocket socket = null;
+	//			while ((mAcceptThread != null) && ((mConnectThread == null) || !mConnectThread.isConnected())) {
+	//				try {
+	//					socket = mServerSocket.accept();
+	//				} catch (IOException e) {
+	//					Log.e(TAG, e.getMessage());
+	//					break;
+	//				}
+	//				if (socket != null) {
+	//					synchronized (RemoteAuthClientService.this) {
+	//						if (mConnectThread != null)
+	//							mConnectThread.shutdown();
+	//						mConnectThread = new ConnectThread(socket);
+	//						mConnectThread.start();
+	//					}
+	//				}
+	//			}
+	//			shutdown();
+	//		}
+	//
+	//		public void shutdown() {
+	//			mAcceptThread = null;
+	//		}
+	//	}
 
 	@Override
 	public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {

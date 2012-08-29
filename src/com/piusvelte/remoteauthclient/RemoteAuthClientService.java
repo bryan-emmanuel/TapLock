@@ -139,10 +139,10 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 					mQueueAddress = null;
 					mQueueState = null;
 				}
-			} else if (action.equals(ACTION_TOGGLE) && intent.hasExtra(EXTRA_DEVICE_ADDRESS)) {
+			} else if (ACTION_TOGGLE.equals(action) && intent.hasExtra(EXTRA_DEVICE_ADDRESS)) {
 				String address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS);
 				requestWrite(address, Integer.toString(RemoteAuthClientUI.STATE_TOGGLE));
-			} else if (action.equals(AppWidgetManager.ACTION_APPWIDGET_UPDATE)) {
+			} else if (AppWidgetManager.ACTION_APPWIDGET_UPDATE.equals(action)) {
 				// create widget
 				AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(this);
 				SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE);
@@ -170,7 +170,7 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 					for (int appWidgetId : appWidgetIds)
 						appWidgetManager.updateAppWidget(appWidgetId, buildWidget(intent, appWidgetId, widgets));
 				}
-			} else if (action.equals(AppWidgetManager.ACTION_APPWIDGET_DELETED)) {
+			} else if (AppWidgetManager.ACTION_APPWIDGET_DELETED.equals(action)) {
 				int appWidgetId = intent.getExtras().getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
 				SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE);
 				Set<String> widgets = sp.getStringSet(getString(R.string.key_widgets), (new HashSet<String>()));

@@ -39,17 +39,14 @@ import android.view.ContextMenu.ContextMenuInfo;
 import android.view.View.OnClickListener;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-//import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.AdapterView.AdapterContextMenuInfo;
-import android.widget.TextView;
 import android.widget.Toast;
 
 public class RemoteAuthClientUI extends ListActivity implements OnClickListener, ServiceConnection {
 	private static final String TAG = "RemoteAuthClientUI";
 	private Button mBtn_add;
-	private TextView mFld_info;
 	private AlertDialog mDialog;
 	private String[] mDevices;
 	private String[] mPairedDevices = new String[0];
@@ -75,7 +72,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 
 		@Override
 		public void setMessage(String message) throws RemoteException {
-			mFld_info.setText(message + "\n" + mFld_info.getText().toString());
+			Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
 		}
 
 		@Override
@@ -99,7 +96,6 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		registerForContextMenu(getListView());
 		mBtn_add = ((Button) findViewById(R.id.btn_add));
 		mBtn_add.setOnClickListener(this);
-		mFld_info = ((TextView) findViewById(R.id.fld_info));
 		//NFC
 		mNfcAdapter = NfcAdapter.getDefaultAdapter(getApplicationContext());
 
@@ -417,17 +413,14 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 				passphraseEnd = passphraseEndTest;
 				passphraseEndTest = passphrase.indexOf(" ", (passphraseEnd + 1));
 			}
-			if (passphraseEnd != -1) {
-				// there's a passphrase
+			if (passphraseEnd != -1)
 				parsedDevice[DEVICE_PASSPHRASE] = passphrase.substring(0, passphraseEnd);
-			} else {
+			else
 				parsedDevice[DEVICE_PASSPHRASE] = "";
-			}
-			if (device.length() > 17) {
+			if (device.length() > 17)
 				parsedDevice[DEVICE_ADDRESS] = device.substring(device.length() - 17);
-			} else {
+			else
 				parsedDevice[DEVICE_ADDRESS] = "";
-			}
 		} else {
 			parsedDevice = new String[]{"", "", ""};
 		}
@@ -437,9 +430,8 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 	protected static String buildDeviceString(String[] parsedDevice) {
 		StringBuilder device = new StringBuilder();
 		for (String item : parsedDevice) {
-			if (device.length() > 0) {
+			if (device.length() > 0)
 				device.append(" ");
-			}
 			device.append(item);
 		}
 		return device.toString();
@@ -449,20 +441,16 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		boolean exists = false;
 		if (newDevice.length() > 0) {
 			for (String device : mDevices) {
-				if (newDevice.equals(device)) {
+				if (newDevice.equals(device))
 					exists = true;
-				}
 			}
-		} else {
-			// this will prevent empty devices
+		} else
 			exists = true;
-		}
 		if (!exists) {
 			// new device
 			String[] devices = new String[mDevices.length + 1];
-			for (int i = 0, l = mDevices.length; i < l; i++) {
+			for (int i = 0, l = mDevices.length; i < l; i++)
 				devices[i] = mDevices[i];
-			}
 			devices[mDevices.length] = newDevice;
 			mDevices = devices;
 			setListAdapter(new ArrayAdapter<String>(RemoteAuthClientUI.this, android.R.layout.simple_list_item_1, mDevices));

@@ -4,7 +4,8 @@
     <string name="app_name">Remote Auth Client</string>
     <string name="btn_add">Add</string>
     <string name="chk_sec">Secure</string>
-    <string name="btn_bt_settings">Bluetooth Settings</string>
+    <string name="btn_bt_scan">Scan for new Devices</string>
+    <string name="msg_scanning">scanning...</string>
     <string name="key_preferences">remoteauthclient</string>
     <string name="key_devices">devices</string>
     <string name="key_widgets">widgets</string>

@@ -9,6 +9,7 @@ import java.util.Set;
 import android.app.AlertDialog;
 import android.app.ListActivity;
 import android.app.PendingIntent;
+import android.app.ProgressDialog;
 import android.appwidget.AppWidgetManager;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -47,9 +48,11 @@ import android.widget.Toast;
 public class RemoteAuthClientUI extends ListActivity implements OnClickListener, ServiceConnection {
 	private static final String TAG = "RemoteAuthClientUI";
 	private Button mBtn_add;
+	private ProgressDialog mProgressDialog;
 	private AlertDialog mDialog;
 	private String[] mDevices;
 	private String[] mPairedDevices = new String[0];
+	private String[] mUnpairedDevices = new String[0];
 	private static final int REMOVE_ID = Menu.FIRST;
 
 	public static final int STATE_UNLOCK = 0;
@@ -74,17 +77,59 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		public void setMessage(String message) throws RemoteException {
 			Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
 		}
+		
+		@Override
+		public void setUnpairedDevice(String device) throws RemoteException {
+			if ((mProgressDialog != null) && mProgressDialog.isShowing()) {
+				String[] unpairedDevices = new String[mUnpairedDevices.length + 1];
+				for (int i = 0, l = mUnpairedDevices.length; i < l; i++)
+					unpairedDevices[i] = mUnpairedDevices[i];
+				unpairedDevices[mUnpairedDevices.length] = device;
+				mUnpairedDevices = unpairedDevices;
+			}
+		}
+		
+		@Override
+		public void setDiscoveryFinished() throws RemoteException {
+			if ((mProgressDialog != null) && mProgressDialog.isShowing()) {
+				mProgressDialog.cancel();
+				if (mUnpairedDevices.length > 0) {
+					mDialog = new AlertDialog.Builder(RemoteAuthClientUI.this)
+					.setItems(mUnpairedDevices, new DialogInterface.OnClickListener() {
+						@Override
+						public void onClick(DialogInterface dialog, int which) {
+							if (mServiceInterface != null) {
+								String[] parts = RemoteAuthClientUI.parseDeviceString(mUnpairedDevices[which]);
+								try {
+									mServiceInterface.pairDevice(parts[RemoteAuthClientUI.DEVICE_ADDRESS]);
+								} catch (RemoteException e) {
+									Log.e(TAG, e.toString());
+									Toast.makeText(getApplicationContext(), "service unavailable", Toast.LENGTH_SHORT).show();
+								}
+							} else
+								Toast.makeText(getApplicationContext(), "service unavailable", Toast.LENGTH_SHORT).show();
+						}
+					})
+					.create();
+					mDialog.show();
+				} else
+					Toast.makeText(getApplicationContext(), "no unpaired devices found", Toast.LENGTH_SHORT).show();
+			}
+		}
 
 		@Override
 		public void setStateFinished() throws RemoteException {
 			Intent intent = getIntent();
 			if (intent != null) {
 				String action = intent.getAction();
-				if ((action != null) && action.equals(NfcAdapter.ACTION_NDEF_DISCOVERED) && intent.hasExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)) {
-					// this was an NFC event, finish the activity
+				if (NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action) && intent.hasExtra(NfcAdapter.EXTRA_NDEF_MESSAGES))
 					RemoteAuthClientUI.this.finish();
-				}
 			}
+		}
+
+		@Override
+		public void setPairingResult(String device) throws RemoteException {
+			addNewDevice(device);
 		}
 
 	};
@@ -248,9 +293,10 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 				}
 				unbindService(this);
 			}
-			if ((mDialog != null) && mDialog.isShowing()) {
+			if ((mDialog != null) && mDialog.isShowing())
 				mDialog.cancel();
-			}
+			if ((mProgressDialog != null) && mProgressDialog.isShowing())
+				mProgressDialog.cancel();
 			// save devices
 			Set<String> devices = new HashSet<String>();
 			for (String device : mDevices) {
@@ -271,9 +317,9 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 			@Override
 			public void onClick(DialogInterface dialog, int which) {
 				int state = Integer.parseInt(getResources().getStringArray(R.array.state_values)[which]);
-				final int deviceIdx = (int) id;
+				int deviceIdx = (int) id;
 				String device = mDevices[deviceIdx];
-				final String[] parsedDevice = parseDeviceString(device);
+				String[] parsedDevice = parseDeviceString(device);
 				dialog.cancel();
 				switch (state) {
 				case STATE_UNLOCK:
@@ -282,7 +328,6 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 					// attempt to connect to the device
 					if (mServiceInterface != null) {
 						try {
-							//							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(state), mChk_sec.isChecked(), parsedDevice[DEVICE_PASSPHRASE]);
 							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(state));
 						} catch (RemoteException e) {
 							Log.e(TAG, e.toString());
@@ -311,26 +356,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 					setListAdapter(new ArrayAdapter<String>(RemoteAuthClientUI.this, android.R.layout.simple_list_item_1, mDevices));
 					break;
 				case STATE_PASSPHRASE:
-					final EditText fld_passphrase = new EditText(RemoteAuthClientUI.this);
-					// parse the existing passphrase
-					fld_passphrase.setText(parsedDevice[DEVICE_PASSPHRASE]);
-					mDialog = new AlertDialog.Builder(RemoteAuthClientUI.this)
-					.setTitle("set passphrase")
-					.setView(fld_passphrase)
-					.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
-
-						@Override
-						public void onClick(DialogInterface dialog, int which) {
-							dialog.cancel();
-							String device = buildDeviceString(new String[]{parsedDevice[DEVICE_NAME], fld_passphrase.getText().toString(), parsedDevice[DEVICE_ADDRESS]});
-							// save the device
-							mDevices[(int) deviceIdx] = device;
-							setListAdapter(new ArrayAdapter<String>(RemoteAuthClientUI.this, android.R.layout.simple_list_item_1, mDevices));
-						}
-
-					})
-					.create();
-					mDialog.show();
+					setPassphrase(parsedDevice, deviceIdx);
 					break;
 				}
 			}
@@ -387,17 +413,64 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 					}
 
 				})
-				.setPositiveButton(getString(R.string.btn_bt_settings), new DialogInterface.OnClickListener() {
+				.setPositiveButton(getString(R.string.btn_bt_scan), new DialogInterface.OnClickListener() {
 					@Override
 					public void onClick(DialogInterface dialog, int which) {
-						startActivity(new Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS));
+//						startActivity(new Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS));
+						mUnpairedDevices = new String[0];
+						if (mServiceInterface != null) {
+							try {
+								mServiceInterface.requestDiscovery();
+								mProgressDialog = new ProgressDialog(RemoteAuthClientUI.this);
+								mProgressDialog.setMessage(getString(R.string.msg_scanning));
+								mProgressDialog.setCancelable(true);
+								mProgressDialog.show();
+							} catch (RemoteException e) {
+								Log.e(TAG, e.toString());
+							}
+						}
 					}
 				})
 				.create();
 				mDialog.show();
-			} else
-				startActivity(new Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS));
+			} else {
+				mUnpairedDevices = new String[0];
+				if (mServiceInterface != null) {
+					try {
+						mServiceInterface.requestDiscovery();
+						mProgressDialog = new ProgressDialog(this);
+						mProgressDialog.setMessage(getString(R.string.msg_scanning));
+						mProgressDialog.setCancelable(true);
+						mProgressDialog.show();
+					} catch (RemoteException e) {
+						Log.e(TAG, e.toString());
+					}
+				}
+			}
 		}
+	}
+	
+	protected void setPassphrase(final String[] parsedDevice, final int deviceIdx) {
+		final EditText fld_passphrase = new EditText(RemoteAuthClientUI.this);
+		// parse the existing passphrase
+		fld_passphrase.setText(parsedDevice[DEVICE_PASSPHRASE]);
+		mDialog = new AlertDialog.Builder(RemoteAuthClientUI.this)
+		.setTitle("set passphrase")
+		.setView(fld_passphrase)
+		.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+
+			@Override
+			public void onClick(DialogInterface dialog, int which) {
+				dialog.cancel();
+				String device = buildDeviceString(new String[]{parsedDevice[DEVICE_NAME], fld_passphrase.getText().toString(), parsedDevice[DEVICE_ADDRESS]});
+				// save the device
+				mDevices[deviceIdx] = device;
+				setListAdapter(new ArrayAdapter<String>(RemoteAuthClientUI.this, android.R.layout.simple_list_item_1, mDevices));
+			}
+
+		})
+		.create();
+		mDialog.show();
 	}
 
 	protected static String[] parseDeviceString(String device) {
@@ -454,6 +527,8 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 			devices[mDevices.length] = newDevice;
 			mDevices = devices;
 			setListAdapter(new ArrayAdapter<String>(RemoteAuthClientUI.this, android.R.layout.simple_list_item_1, mDevices));
+			// set the passphrase
+			setPassphrase(RemoteAuthClientUI.parseDeviceString(newDevice), mDevices.length - 1);
 		}
 	}
 

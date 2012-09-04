@@ -20,6 +20,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.nfc.FormatException;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
@@ -583,17 +584,51 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 								}
 							}
 							if (parsedDevice != null) {
-								if (mServiceInterface != null) {
 									try {
 										mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(STATE_TOGGLE));
 									} catch (RemoteException e) {
 										Log.e(TAG, e.toString());
 									}
-								}
 							}
 						} catch (UnsupportedEncodingException e) {
 							// should never happen unless we get a malformed tag.
 							Log.e(TAG, e.toString());
+						}
+					}
+				}
+			} else if (intent.getData() != null) {
+				Toast.makeText(getApplicationContext(), "action: " + intent.getAction(), Toast.LENGTH_SHORT).show();
+				Toast.makeText(getApplicationContext(), "mimetype: " + intent.getType(), Toast.LENGTH_SHORT).show();
+				if (intent.getData() != null)
+					Toast.makeText(getApplicationContext(), "data: " + intent.getData().toString(), Toast.LENGTH_SHORT).show();
+				Uri remoteCmd = intent.getData();
+				String cmd = remoteCmd.getLastPathSegment();
+				String taggedDeviceName = remoteCmd.getHost();
+				if ((cmd != null) && (taggedDeviceName != null)) {
+					String[] parsedDevice = null;
+					for (String device : mDevices) {
+						String deviceName = parseDeviceString(device)[0];
+						if (deviceName.equals(taggedDeviceName)) {
+							parsedDevice = parseDeviceString(device);
+							break;
+						}
+					}
+					if (parsedDevice != null) {
+						String states[] = getResources().getStringArray(R.array.state_values);
+						if (states[STATE_UNLOCK].equals(cmd))
+							cmd = Integer.toString(STATE_UNLOCK);
+						else if (states[STATE_LOCK].equals(cmd))
+							cmd = Integer.toString(STATE_LOCK);
+						else if (states[STATE_TOGGLE].equals(cmd))
+							cmd = Integer.toString(STATE_TOGGLE);
+						else
+							cmd = null;
+						if (cmd != null) {
+							try {
+								mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], cmd);
+							} catch (RemoteException e) {
+								Log.e(TAG, e.toString());
+							}
 						}
 					}
 				}

@@ -39,7 +39,7 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 	private String mQueueState;
 	private boolean mRequestDiscovery = false;
 	private boolean mStartedBT = false;
-	private String mDeviceFound = null;
+	private boolean mDeviceFound = false;
 	private String[] mDevices = new String[0];
 	private static final UUID sRemoteAuthServerUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 	private int[] mThreadLock = new int[0];
@@ -104,12 +104,7 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 
 		@Override
 		public void pairDevice(String address) throws RemoteException {
-			synchronized (mThreadLock) {
-				if (mConnectThread != null)
-					mConnectThread.shutdown();
-				mConnectThread = new ConnectThread(address, null);
-				mConnectThread.start();
-			}
+			requestWrite(address, null);
 		}
 	};
 
@@ -150,8 +145,7 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 						String[] parts = RemoteAuthClientUI.parseDeviceString(d);
 						if (parts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(address)) {
 							// if queued
-							if ((mQueueAddress != null) && mQueueAddress.equals(address) && (mQueueState != null))
-								mDeviceFound = address;
+							mDeviceFound = (mQueueAddress != null) && mQueueAddress.equals(address) && (mQueueState != null);
 							break;
 						}
 					}
@@ -163,16 +157,9 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 					}
 				}
 			} else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
-				if (mDeviceFound != null) {
-					synchronized (mThreadLock) {
-						if (mConnectThread != null)
-							mConnectThread.shutdown();
-						mConnectThread = new ConnectThread(mDeviceFound, mQueueState);
-						mConnectThread.start();
-					}
-					mDeviceFound = null;
-					mQueueAddress = null;
-					mQueueState = null;
+				if (mDeviceFound) {
+					requestWrite(mQueueAddress, mQueueState);
+					mDeviceFound = false;
 				} else if (mRequestDiscovery) {
 					mRequestDiscovery = false;
 					if (mUIInterface != null) {
@@ -280,6 +267,8 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 				mConnectThread = new ConnectThread(address, state);
 				mConnectThread.start();
 			}
+			mQueueAddress = null;
+			mQueueState = null;
 		} else {
 			mQueueAddress = address;
 			mQueueState = state;
@@ -296,32 +285,47 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 	}
 
 	private class ConnectThread extends Thread {
+		private BluetoothDevice mDevice = null;
 		private BluetoothSocket mSocket = null;
 		private InputStream inStream;
 		private OutputStream outStream;
-		private String mAddress;
 		private String mState;
 
 		public ConnectThread(String address, String state) {
-			mAddress = address;
 			mState = state;
+			BluetoothSocket tmpSocket = null;
+			mDevice = mBtAdapter.getRemoteDevice(address);
+			try {
+				tmpSocket = mDevice.createRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
+			} catch (IOException e) {
+				mMessage = "failed to get socket";
+				mHandler.post(mRunnable);
+				tmpSocket = null;
+			}
+			mSocket = tmpSocket;
 		}
 
 		public void run() {
 			mBtAdapter.cancelDiscovery();
-			BluetoothDevice device = mBtAdapter.getRemoteDevice(mAddress);
-			try {
-				mSocket = device.createRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
-				mSocket.connect();
-			} catch (IOException e) {
-				mMessage = "failed to connect with socket";
+			if (mSocket == null) {
+				mMessage = "failed to get socket";
 				mHandler.post(mRunnable);
 				shutdown();
 				return;
 			}
+			try {
+				mSocket.connect();
+			} catch (IOException e) {
+				Log.d(TAG, e.toString());
+				mMessage = "failed to connect";
+				mHandler.post(mRunnable);
+				shutdown();
+				return;
+			}
+			Log.d(TAG, "connected, state: " + mState);
 			if (mState == null) {
 				//pairing successful
-				mPairedDevice = device.getName() + " " + mAddress;
+				mPairedDevice = mDevice.getName() + " " + mDevice.getAddress();
 				mHandler.post(mRunnable);
 			} else {
 				// Get the BluetoothSocket input and output streams
@@ -334,6 +338,7 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 					shutdown();
 					return;
 				}
+				Log.d(TAG, "opened streams");
 				byte[] buffer = new byte[1024];
 				int readBytes = -1;
 				try {
@@ -343,6 +348,7 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 					mHandler.post(mRunnable);
 				}
 				if (readBytes != -1) {
+					Log.d(TAG, "read stream");
 					// construct a string from the valid bytes in the buffer
 					String message = new String(buffer, 0, readBytes);
 					// listen for challenge, then process a response
@@ -351,44 +357,47 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 						challenge = message.substring(10);
 					// get passphrase
 					String passphrase = null;
-					if (mSocket != null) {
-						BluetoothDevice bd = mSocket.getRemoteDevice();
-						if (bd != null) {
-							String address = bd.getAddress();
-							if (address != null) {
-								for (String d : mDevices) {
-									String[] parts = RemoteAuthClientUI.parseDeviceString(d);
-									if (parts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(address)) {
-										if ((passphrase = parts[RemoteAuthClientUI.DEVICE_PASSPHRASE]) != null) {
-											if (challenge != null) {
-												MessageDigest mDigest;
-												try {
-													mDigest = MessageDigest.getInstance("SHA-256");
-												} catch (NoSuchAlgorithmException e) {
-													mMessage = "failed to get message digest instance";
-													mHandler.post(mRunnable);
-													shutdown();
-													return;
-												}
-												mDigest.reset();
-												try {
-													mDigest.update((challenge + passphrase + mState).getBytes("UTF-8"));
-													String request = new BigInteger(1, mDigest.digest()).toString(16);
-													outStream.write(request.getBytes());
-												} catch (IOException e) {
-													mMessage = "failed to write to output stream";
-													mHandler.post(mRunnable);
-												}
-											} else {
-												mMessage = "failed to receive a challenge";
-												mHandler.post(mRunnable);
-											}
+					BluetoothDevice bd = mSocket.getRemoteDevice();
+					if (bd != null) {
+						String address = bd.getAddress();
+						Log.d(TAG, "device address: " + address);
+						for (String d : mDevices) {
+							String[] parts = RemoteAuthClientUI.parseDeviceString(d);
+							if (parts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(address)) {
+								if ((passphrase = parts[RemoteAuthClientUI.DEVICE_PASSPHRASE]) != null) {
+									if (challenge != null) {
+										MessageDigest mDigest;
+										try {
+											mDigest = MessageDigest.getInstance("SHA-256");
+										} catch (NoSuchAlgorithmException e) {
+											mMessage = "failed to get message digest instance";
+											mHandler.post(mRunnable);
+											shutdown();
+											return;
 										}
-										break;
+										mDigest.reset();
+										try {
+											mDigest.update((challenge + passphrase + mState).getBytes("UTF-8"));
+											String request = new BigInteger(1, mDigest.digest()).toString(16);
+											outStream.write(request.getBytes());
+										} catch (IOException e) {
+											mMessage = "failed to write to output stream";
+											mHandler.post(mRunnable);
+										}
+									} else {
+										mMessage = "failed to receive a challenge";
+										mHandler.post(mRunnable);
 									}
+								} else {
+									mMessage = "no passphrase";
+									mHandler.post(mRunnable);
 								}
+								break;
 							}
 						}
+					} else {
+						mMessage = "failed to get remote device";
+						mHandler.post(mRunnable);
 					}
 				} else {
 					mMessage = "failed to read input stream";

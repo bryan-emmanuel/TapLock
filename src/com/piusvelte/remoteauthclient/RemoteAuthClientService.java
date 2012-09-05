@@ -285,7 +285,7 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 	}
 
 	private class ConnectThread extends Thread {
-		private BluetoothDevice mDevice = null;
+		private String mAddress = null;
 		private BluetoothSocket mSocket = null;
 		private InputStream inStream;
 		private OutputStream outStream;
@@ -293,39 +293,25 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 
 		public ConnectThread(String address, String state) {
 			mState = state;
-			BluetoothSocket tmpSocket = null;
-			mDevice = mBtAdapter.getRemoteDevice(address);
-			try {
-				tmpSocket = mDevice.createRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
-			} catch (IOException e) {
-				mMessage = "failed to get socket";
-				mHandler.post(mRunnable);
-				tmpSocket = null;
-			}
-			mSocket = tmpSocket;
+			mAddress = address;
 		}
 
 		public void run() {
 			mBtAdapter.cancelDiscovery();
-			if (mSocket == null) {
-				mMessage = "failed to get socket";
-				mHandler.post(mRunnable);
-				shutdown();
-				return;
-			}
+			BluetoothDevice device = mBtAdapter.getRemoteDevice(mAddress);
 			try {
+				mSocket = device.createRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
 				mSocket.connect();
 			} catch (IOException e) {
 				Log.d(TAG, e.toString());
-				mMessage = "failed to connect";
+				mMessage = "failed to get socket, or connect";
 				mHandler.post(mRunnable);
 				shutdown();
 				return;
 			}
-			Log.d(TAG, "connected, state: " + mState);
 			if (mState == null) {
 				//pairing successful
-				mPairedDevice = mDevice.getName() + " " + mDevice.getAddress();
+				mPairedDevice = device.getName() + " " + mAddress;
 				mHandler.post(mRunnable);
 			} else {
 				// Get the BluetoothSocket input and output streams
@@ -338,7 +324,6 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 					shutdown();
 					return;
 				}
-				Log.d(TAG, "opened streams");
 				byte[] buffer = new byte[1024];
 				int readBytes = -1;
 				try {
@@ -348,7 +333,6 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 					mHandler.post(mRunnable);
 				}
 				if (readBytes != -1) {
-					Log.d(TAG, "read stream");
 					// construct a string from the valid bytes in the buffer
 					String message = new String(buffer, 0, readBytes);
 					// listen for challenge, then process a response
@@ -357,47 +341,39 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 						challenge = message.substring(10);
 					// get passphrase
 					String passphrase = null;
-					BluetoothDevice bd = mSocket.getRemoteDevice();
-					if (bd != null) {
-						String address = bd.getAddress();
-						Log.d(TAG, "device address: " + address);
-						for (String d : mDevices) {
-							String[] parts = RemoteAuthClientUI.parseDeviceString(d);
-							if (parts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(address)) {
-								if ((passphrase = parts[RemoteAuthClientUI.DEVICE_PASSPHRASE]) != null) {
-									if (challenge != null) {
-										MessageDigest mDigest;
-										try {
-											mDigest = MessageDigest.getInstance("SHA-256");
-										} catch (NoSuchAlgorithmException e) {
-											mMessage = "failed to get message digest instance";
-											mHandler.post(mRunnable);
-											shutdown();
-											return;
-										}
-										mDigest.reset();
-										try {
-											mDigest.update((challenge + passphrase + mState).getBytes("UTF-8"));
-											String request = new BigInteger(1, mDigest.digest()).toString(16);
-											outStream.write(request.getBytes());
-										} catch (IOException e) {
-											mMessage = "failed to write to output stream";
-											mHandler.post(mRunnable);
-										}
-									} else {
-										mMessage = "failed to receive a challenge";
+					for (String d : mDevices) {
+						String[] parts = RemoteAuthClientUI.parseDeviceString(d);
+						if (parts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(mAddress)) {
+							if ((passphrase = parts[RemoteAuthClientUI.DEVICE_PASSPHRASE]) != null) {
+								if (challenge != null) {
+									MessageDigest mDigest;
+									try {
+										mDigest = MessageDigest.getInstance("SHA-256");
+									} catch (NoSuchAlgorithmException e) {
+										mMessage = "failed to get message digest instance";
+										mHandler.post(mRunnable);
+										shutdown();
+										return;
+									}
+									mDigest.reset();
+									try {
+										mDigest.update((challenge + passphrase + mState).getBytes("UTF-8"));
+										String request = new BigInteger(1, mDigest.digest()).toString(16);
+										outStream.write(request.getBytes());
+									} catch (IOException e) {
+										mMessage = "failed to write to output stream";
 										mHandler.post(mRunnable);
 									}
 								} else {
-									mMessage = "no passphrase";
+									mMessage = "failed to receive a challenge";
 									mHandler.post(mRunnable);
 								}
-								break;
+							} else {
+								mMessage = "no passphrase";
+								mHandler.post(mRunnable);
 							}
+							break;
 						}
-					} else {
-						mMessage = "failed to get remote device";
-						mHandler.post(mRunnable);
 					}
 				} else {
 					mMessage = "failed to read input stream";
@@ -408,8 +384,22 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 		}
 
 		public void shutdown() {
-			inStream = null;
-			outStream = null;
+			if (inStream != null) {
+				try {
+					inStream.close();
+				} catch (IOException e) {
+					Log.e(TAG, e.toString());
+				}
+				inStream = null;
+			}
+			if (outStream != null) {
+				try {
+					outStream.close();
+				} catch (IOException e) {
+					Log.e(TAG, e.toString());
+				}
+				outStream = null;
+			}
 			if (mSocket != null) {
 				try {
 					mSocket.close();
@@ -418,9 +408,9 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 				}
 				mSocket = null;
 			}
-			mConnectThread = null;
 			mMessage = null;
 			mHandler.post(mRunnable);
+			mConnectThread = null;
 		}
 	}
 

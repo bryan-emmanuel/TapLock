@@ -3,7 +3,7 @@ package com.piusvelte.remoteauthclient;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.math.BigInteger;
+import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashSet;
@@ -233,6 +233,20 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 			mBtAdapter.disable();
 		}
 	}
+	
+	protected static String getHashString(String str) throws NoSuchAlgorithmException, UnsupportedEncodingException {
+		MessageDigest md = MessageDigest.getInstance("SHA-256");
+		md.update(str.getBytes("UTF-8"));
+		StringBuffer hexString = new StringBuffer();
+		byte[] hash = md.digest();
+		for (byte b : hash) {
+			if ((0xFF & b) < 0x10)
+				hexString.append("0" + Integer.toHexString((0xFF & b)));
+			else
+				hexString.append(Integer.toHexString(0xFF & b));
+		}
+		return hexString.toString();
+	}
 
 	private RemoteViews buildWidget(Intent intent, int appWidgetId, Set<String> widgets) {
 		RemoteViews views = new RemoteViews(getPackageName(), R.layout.widget);
@@ -346,21 +360,19 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 						if (parts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(mAddress)) {
 							if ((passphrase = parts[RemoteAuthClientUI.DEVICE_PASSPHRASE]) != null) {
 								if (challenge != null) {
-									MessageDigest mDigest;
 									try {
-										mDigest = MessageDigest.getInstance("SHA-256");
-									} catch (NoSuchAlgorithmException e) {
-										mMessage = "failed to get message digest instance";
-										mHandler.post(mRunnable);
-										shutdown();
-										return;
-									}
-									mDigest.reset();
-									try {
-										mDigest.update((challenge + passphrase + mState).getBytes("UTF-8"));
-										String request = new BigInteger(1, mDigest.digest()).toString(16);
+										String request = getHashString(challenge + passphrase + mState);
 										outStream.write(request.getBytes());
+									} catch (NoSuchAlgorithmException e) {
+										Log.e(TAG, e.toString());
+										mMessage = "failed to get hash string";
+										mHandler.post(mRunnable);
+									} catch (UnsupportedEncodingException e) {
+										Log.e(TAG, e.toString());
+										mMessage = "failed to get hash string";
+										mHandler.post(mRunnable);
 									} catch (IOException e) {
+										Log.e(TAG, e.toString());
 										mMessage = "failed to write to output stream";
 										mHandler.post(mRunnable);
 									}

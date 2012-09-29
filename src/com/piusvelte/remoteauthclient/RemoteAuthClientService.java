@@ -63,7 +63,8 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 				} catch (RemoteException e) {
 					Log.e(TAG, e.toString());
 				}
-			}
+			} else
+				stopSelf();
 		}
 	};
 
@@ -96,10 +97,11 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 
 		@Override
 		public void stop() throws RemoteException {
-			if (mStartedBT) {
-				mStartedBT = false;
-				mBtAdapter.disable();
-			}
+			// stop the service if there's no activity
+			if (mConnectThread == null)
+				stopSelf();
+			// when the connectthread stops, it will stop the service
+			mUIInterface = null;
 		}
 
 		@Override
@@ -129,12 +131,8 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 						else if (mRequestDiscovery && !mBtAdapter.isDiscovering())
 							mBtAdapter.startDiscovery();
 					}
-				} else if (state == BluetoothAdapter.STATE_TURNING_OFF) {
+				} else if (state == BluetoothAdapter.STATE_TURNING_OFF)
 					stopThreads();
-					if (mUIInterface == null)
-						RemoteAuthClientService.this.stopSelf();
-				}
-				// When discovery finds a device
 			} else if (BluetoothDevice.ACTION_FOUND.equals(action)) {
 				// Get the BluetoothDevice object from the Intent
 				BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
@@ -420,9 +418,9 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 				}
 				mSocket = null;
 			}
+			mConnectThread = null;
 			mMessage = null;
 			mHandler.post(mRunnable);
-			mConnectThread = null;
 		}
 	}
 

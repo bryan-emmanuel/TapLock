@@ -122,8 +122,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		public void setStateFinished() throws RemoteException {
 			Intent intent = getIntent();
 			if (intent != null) {
-				String action = intent.getAction();
-				if (NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action) && intent.hasExtra(NfcAdapter.EXTRA_NDEF_MESSAGES))
+				if (NfcAdapter.ACTION_NDEF_DISCOVERED.equals(intent.getAction()) && intent.hasExtra(NfcAdapter.EXTRA_NDEF_MESSAGES))
 					RemoteAuthClientUI.this.finish();
 			}
 		}

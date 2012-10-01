@@ -23,24 +23,9 @@
     android:layout_height="fill_parent"
     android:orientation="vertical" >
 
-    <Button
-        android:id="@+id/btn_add"
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentTop="true"
-        android:text="@string/btn_add" />
-
-    <ListView
-        android:id="@android:id/list"
-        android:layout_width="fill_parent"
-        android:layout_height="fill_parent"
-        android:layout_below="@id/btn_add" />
-
     <TextView
-        android:id="@android:id/empty"
+        android:id="@+id/info"
         android:layout_width="fill_parent"
-        android:layout_height="fill_parent"
-        android:layout_below="@id/btn_add"
-        android:text="@string/no_devices" />
+        android:layout_height="fill_parent" />
 
 </RelativeLayout>

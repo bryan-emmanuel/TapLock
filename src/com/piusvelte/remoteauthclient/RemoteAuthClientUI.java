@@ -1,3 +1,22 @@
+/*
+ * RemoteAuthClient
+ * Copyright (C) 2012 Bryan Emmanuel
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *  
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *  
+ *  Bryan Emmanuel piusvelte@gmail.com
+ */
 package com.piusvelte.remoteauthclient;
 
 import java.io.IOException;
@@ -20,7 +39,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
-import android.net.Uri;
 import android.nfc.FormatException;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
@@ -30,7 +48,6 @@ import android.nfc.tech.Ndef;
 import android.nfc.tech.NdefFormatable;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.os.Parcelable;
 import android.os.RemoteException;
 import android.util.Log;
 import android.view.ContextMenu;
@@ -159,7 +176,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		if (mInWriteMode) {
 			if (intent != null) {
 				String action = intent.getAction();
-				if (mInWriteMode && action.equals(NfcAdapter.ACTION_TAG_DISCOVERED) && intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME)) {
+				if (mInWriteMode && NfcAdapter.ACTION_TAG_DISCOVERED.equals(action) && intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME)) {
 					Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
 					String name = intent.getStringExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME);
 					Log.d(TAG, "write tag: " + name);
@@ -540,97 +557,6 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 				mServiceInterface.setCallback(mUIInterface);
 			} catch (RemoteException e) {
 				Log.e(TAG, e.toString());
-			}
-		}
-		Intent intent = getIntent();
-		if (intent != null) {
-			String action = intent.getAction();
-			if ((action != null) && action.equals(NfcAdapter.ACTION_NDEF_DISCOVERED) && intent.hasExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)) {
-				Log.d(TAG, "service connected, NDEF_DISCOVERED");
-				Parcelable[] rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
-				NdefMessage message;
-				if (rawMsgs != null) {
-					// process the first message
-					message = (NdefMessage) rawMsgs[0];
-					// process the first record
-					NdefRecord record = message.getRecords()[0];
-					if (record.getTnf() == NdefRecord.TNF_WELL_KNOWN) {
-						try {
-							byte[] payload = record.getPayload();
-							/*
-							 * payload[0] contains the "Status Byte Encodings" field, per the
-							 * NFC Forum "Text Record Type Definition" section 3.2.1.
-							 *
-							 * bit7 is the Text Encoding Field.
-							 *
-							 * if (Bit_7 == 0): The text is encoded in UTF-8 if (Bit_7 == 1):
-							 * The text is encoded in UTF16
-							 *
-							 * Bit_6 is reserved for future use and must be set to zero.
-							 *
-							 * Bits 5 to 0 are the length of the IANA language code.
-							 */
-							String textEncoding = ((payload[0] & 0200) == 0) ? "UTF-8" : "UTF-16";
-							int languageCodeLength = payload[0] & 0077;
-							String taggedDeviceName = new String(payload, languageCodeLength + 1, payload.length - languageCodeLength - 1, textEncoding);
-							Log.d(TAG, "taggedDeviceName: " + taggedDeviceName);
-							String[] parsedDevice = null;
-							for (String device : mDevices) {
-								String deviceName = parseDeviceString(device)[0];
-								if (deviceName.equals(taggedDeviceName)) {
-									parsedDevice = parseDeviceString(device);
-									break;
-								}
-							}
-							if (parsedDevice != null) {
-									try {
-										mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(STATE_TOGGLE));
-									} catch (RemoteException e) {
-										Log.e(TAG, e.toString());
-									}
-							}
-						} catch (UnsupportedEncodingException e) {
-							// should never happen unless we get a malformed tag.
-							Log.e(TAG, e.toString());
-						}
-					}
-				}
-			} else if (intent.getData() != null) {
-				Toast.makeText(getApplicationContext(), "action: " + intent.getAction(), Toast.LENGTH_SHORT).show();
-				Toast.makeText(getApplicationContext(), "mimetype: " + intent.getType(), Toast.LENGTH_SHORT).show();
-				if (intent.getData() != null)
-					Toast.makeText(getApplicationContext(), "data: " + intent.getData().toString(), Toast.LENGTH_SHORT).show();
-				Uri remoteCmd = intent.getData();
-				String cmd = remoteCmd.getLastPathSegment();
-				String taggedDeviceName = remoteCmd.getHost();
-				if ((cmd != null) && (taggedDeviceName != null)) {
-					String[] parsedDevice = null;
-					for (String device : mDevices) {
-						String deviceName = parseDeviceString(device)[0];
-						if (deviceName.equals(taggedDeviceName)) {
-							parsedDevice = parseDeviceString(device);
-							break;
-						}
-					}
-					if (parsedDevice != null) {
-						String states[] = getResources().getStringArray(R.array.state_values);
-						if (states[STATE_UNLOCK].equals(cmd))
-							cmd = Integer.toString(STATE_UNLOCK);
-						else if (states[STATE_LOCK].equals(cmd))
-							cmd = Integer.toString(STATE_LOCK);
-						else if (states[STATE_TOGGLE].equals(cmd))
-							cmd = Integer.toString(STATE_TOGGLE);
-						else
-							cmd = null;
-						if (cmd != null) {
-							try {
-								mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], cmd);
-							} catch (RemoteException e) {
-								Log.e(TAG, e.toString());
-							}
-						}
-					}
-				}
 			}
 		}
 	}

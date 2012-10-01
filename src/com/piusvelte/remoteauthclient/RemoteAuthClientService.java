@@ -1,3 +1,22 @@
+/*
+ * RemoteAuthClient
+ * Copyright (C) 2012 Bryan Emmanuel
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *  
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *  
+ *  Bryan Emmanuel piusvelte@gmail.com
+ */
 package com.piusvelte.remoteauthclient;
 
 import java.io.IOException;
@@ -124,6 +143,8 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 			if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
 				int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.STATE_OFF);
 				if (state == BluetoothAdapter.STATE_ON) {
+					mMessage = "Bluetooth enabled";
+					mHandler.post(mRunnable);
 					// if pending...
 					if (mStartedBT) {
 						if ((mQueueAddress != null) && (mQueueState != null))
@@ -131,8 +152,11 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 						else if (mRequestDiscovery && !mBtAdapter.isDiscovering())
 							mBtAdapter.startDiscovery();
 					}
-				} else if (state == BluetoothAdapter.STATE_TURNING_OFF)
+				} else if (state == BluetoothAdapter.STATE_TURNING_OFF) {
+					mMessage = "Bluetooth disabled";
+					mHandler.post(mRunnable);
 					stopThreads();
+				}
 			} else if (BluetoothDevice.ACTION_FOUND.equals(action)) {
 				// Get the BluetoothDevice object from the Intent
 				BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
@@ -231,7 +255,7 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 			mBtAdapter.disable();
 		}
 	}
-	
+
 	protected static String getHashString(String str) throws NoSuchAlgorithmException, UnsupportedEncodingException {
 		MessageDigest md = MessageDigest.getInstance("SHA-256");
 		md.update(str.getBytes("UTF-8"));
@@ -311,12 +335,13 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 		public void run() {
 			mBtAdapter.cancelDiscovery();
 			BluetoothDevice device = mBtAdapter.getRemoteDevice(mAddress);
+			mMessage = "connect to :" + mAddress;
+			mHandler.post(mRunnable);
 			try {
 				mSocket = device.createRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
 				mSocket.connect();
 			} catch (IOException e) {
-				Log.d(TAG, e.toString());
-				mMessage = "failed to get socket, or connect";
+				mMessage = "failed to get socket, or connect: " + e.getMessage();
 				mHandler.post(mRunnable);
 				shutdown();
 				return;
@@ -331,7 +356,7 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 					inStream = mSocket.getInputStream();
 					outStream = mSocket.getOutputStream();
 				} catch (IOException e) {
-					mMessage = "failed to get streams";
+					mMessage = "failed to get streams: " + e.getMessage();
 					mHandler.post(mRunnable);
 					shutdown();
 					return;
@@ -340,8 +365,8 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 				int readBytes = -1;
 				try {
 					readBytes = inStream.read(buffer);
-				} catch (IOException e1) {
-					mMessage = "failed to read input stream";
+				} catch (IOException e) {
+					mMessage = "failed to read input stream: " + e.getMessage();
 					mHandler.post(mRunnable);
 				}
 				if (readBytes != -1) {
@@ -349,41 +374,40 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 					String message = new String(buffer, 0, readBytes);
 					// listen for challenge, then process a response
 					String challenge = null;
-					if ((message.length() > 10) && (message.substring(0, 9).equals("challenge")))
+					if ((message.length() > 10) && (message.substring(0, 9).equals("challenge"))) {
 						challenge = message.substring(10);
-					// get passphrase
-					String passphrase = null;
-					for (String d : mDevices) {
-						String[] parts = RemoteAuthClientUI.parseDeviceString(d);
-						if (parts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(mAddress)) {
-							if ((passphrase = parts[RemoteAuthClientUI.DEVICE_PASSPHRASE]) != null) {
-								if (challenge != null) {
-									try {
-										String request = getHashString(challenge + passphrase + mState);
-										outStream.write(request.getBytes());
-									} catch (NoSuchAlgorithmException e) {
-										Log.e(TAG, e.toString());
-										mMessage = "failed to get hash string";
-										mHandler.post(mRunnable);
-									} catch (UnsupportedEncodingException e) {
-										Log.e(TAG, e.toString());
-										mMessage = "failed to get hash string";
-										mHandler.post(mRunnable);
-									} catch (IOException e) {
-										Log.e(TAG, e.toString());
-										mMessage = "failed to write to output stream";
-										mHandler.post(mRunnable);
+						// get passphrase
+						String passphrase = null;
+						for (String d : mDevices) {
+							String[] parts = RemoteAuthClientUI.parseDeviceString(d);
+							if (parts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(mAddress)) {
+								if ((passphrase = parts[RemoteAuthClientUI.DEVICE_PASSPHRASE]) != null) {
+									if (challenge != null) {
+										try {
+											String request = getHashString(challenge + passphrase + mState);
+											outStream.write(request.getBytes());
+										} catch (NoSuchAlgorithmException e) {
+											mMessage = "failed to get hash string: " + e.getMessage();
+											mHandler.post(mRunnable);
+										} catch (UnsupportedEncodingException e) {
+											mMessage = "failed to get hash string: " + e.getMessage();
+											mHandler.post(mRunnable);
+										} catch (IOException e) {
+											mMessage = "failed to write to output stream: " + e.getMessage();
+											mHandler.post(mRunnable);
+										}
 									}
-								} else {
-									mMessage = "failed to receive a challenge";
-									mHandler.post(mRunnable);
 								}
-							} else {
-								mMessage = "no passphrase";
-								mHandler.post(mRunnable);
+								break;
 							}
-							break;
 						}
+						if (passphrase == null) {
+							mMessage = "no passphrase found for device";
+							mHandler.post(mRunnable);
+						}
+					} else {
+						mMessage = "failed to receive a challenge";
+						mHandler.post(mRunnable);
 					}
 				} else {
 					mMessage = "failed to read input stream";
@@ -394,6 +418,8 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 		}
 
 		public void shutdown() {
+			mMessage = "connect thread shutdown";
+			mHandler.post(mRunnable);
 			if (inStream != null) {
 				try {
 					inStream.close();

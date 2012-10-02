@@ -14,5 +14,6 @@
     <string name="mn_remove">Remove device</string>
     <string name="widget_device_name">unknown</string>
     <string name="widget_device_state">toggle</string>
+    <string name="msg_enable_bt">Please enable Bluetooth.</string>
 
 </resources>

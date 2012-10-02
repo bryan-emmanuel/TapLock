@@ -72,8 +72,8 @@ import android.widget.ListView;
 import android.widget.AdapterView.AdapterContextMenuInfo;
 import android.widget.Toast;
 
-public class TapLockUI extends ListActivity implements OnClickListener, ServiceConnection {
-	private static final String TAG = "TapLockUI";
+public class TapLockSettings extends ListActivity implements OnClickListener, ServiceConnection {
+	private static final String TAG = "TapLockSettings";
 	private Button mBtn_add;
 	private ProgressDialog mProgressDialog;
 	private AlertDialog mDialog;
@@ -110,12 +110,12 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 			if ((mProgressDialog != null) && mProgressDialog.isShowing()) {
 				mProgressDialog.cancel();
 				if (mUnpairedDevices.length > 0) {
-					mDialog = new AlertDialog.Builder(TapLockUI.this)
+					mDialog = new AlertDialog.Builder(TapLockSettings.this)
 					.setItems(mUnpairedDevices, new DialogInterface.OnClickListener() {
 						@Override
 						public void onClick(DialogInterface dialog, int which) {
 							if (mServiceInterface != null) {
-								String[] parts = TapLockUI.parseDeviceString(mUnpairedDevices[which]);
+								String[] parts = TapLockSettings.parseDeviceString(mUnpairedDevices[which]);
 								try {
 									mServiceInterface.pairDevice(parts[DEVICE_ADDRESS]);
 								} catch (RemoteException e) {
@@ -138,7 +138,7 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 			Intent intent = getIntent();
 			if (intent != null) {
 				if (NfcAdapter.ACTION_NDEF_DISCOVERED.equals(intent.getAction()) && intent.hasExtra(NfcAdapter.EXTRA_NDEF_MESSAGES))
-					TapLockUI.this.finish();
+					TapLockSettings.this.finish();
 			}
 		}
 
@@ -156,7 +156,7 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 						String device = buildDeviceString(new String[]{deviceParts[DEVICE_NAME], passphrase, deviceParts[DEVICE_ADDRESS]});
 						// save the device
 						mDevices[i] = device;
-						setListAdapter(new ArrayAdapter<String>(TapLockUI.this, android.R.layout.simple_list_item_1, mDevices));
+						setListAdapter(new ArrayAdapter<String>(TapLockSettings.this, android.R.layout.simple_list_item_1, mDevices));
 						break;
 					}
 				}
@@ -281,7 +281,7 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 				if (extras != null) {
 					final int appWidgetId = extras.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
 					if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-						mDialog = new AlertDialog.Builder(this)
+						mDialog = new AlertDialog.Builder(TapLockSettings.this)
 						.setTitle("Select device for widget")
 						.setItems(mDevices, new DialogInterface.OnClickListener() {
 
@@ -295,8 +295,8 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 								// broadcast the new widget to update
 								String[] deviceParts = parseDeviceString(mDevices[which]);
 								dialog.cancel();
-								TapLockUI.this.finish();
-								sendBroadcast(new Intent(TapLockUI.this, TapLockWidget.class).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId).putExtra(TapLockService.EXTRA_DEVICE_NAME, deviceParts[DEVICE_NAME]).putExtra(TapLockService.EXTRA_DEVICE_ADDRESS, deviceParts[DEVICE_ADDRESS]));
+								TapLockSettings.this.finish();
+								sendBroadcast(new Intent(TapLockSettings.this, TapLockWidget.class).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId).putExtra(TapLockService.EXTRA_DEVICE_NAME, deviceParts[DEVICE_NAME]).putExtra(TapLockService.EXTRA_DEVICE_ADDRESS, deviceParts[DEVICE_ADDRESS]));
 							}
 						})
 						.create();
@@ -340,7 +340,7 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 	@Override
 	protected void onListItemClick(ListView list, final View view, int position, final long id) {
 		super.onListItemClick(list, view, position, id);
-		mDialog = new AlertDialog.Builder(this)
+		mDialog = new AlertDialog.Builder(TapLockSettings.this)
 		.setItems(R.array.actions_entries, new DialogInterface.OnClickListener() {
 			@Override
 			public void onClick(DialogInterface dialog, int which) {
@@ -361,11 +361,11 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 				} else if (ACTION_TAG.equals(action)) {
 					// write the device to a tag
 					mInWriteMode = true;
-					mNfcAdapter.enableForegroundDispatch(TapLockUI.this,
-							PendingIntent.getActivity(TapLockUI.this, 0, new Intent(TapLockUI.this, TapLockUI.this.getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra(TapLockService.EXTRA_DEVICE_NAME, parsedDevice[DEVICE_NAME]), 0),
+					mNfcAdapter.enableForegroundDispatch(TapLockSettings.this,
+							PendingIntent.getActivity(TapLockSettings.this, 0, new Intent(TapLockSettings.this, TapLockSettings.this.getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra(TapLockService.EXTRA_DEVICE_NAME, parsedDevice[DEVICE_NAME]), 0),
 							new IntentFilter[] {new IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED)},
 							null);
-					Toast.makeText(TapLockUI.this, "Touch tag", Toast.LENGTH_LONG).show();
+					Toast.makeText(TapLockSettings.this, "Touch tag", Toast.LENGTH_LONG).show();
 				} else if (ACTION_REMOVE.equals(action)) {
 					// remove device
 					int p = 0;
@@ -376,10 +376,9 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 						}
 					}
 					mDevices = devices;
-					setListAdapter(new ArrayAdapter<String>(TapLockUI.this, android.R.layout.simple_list_item_1, mDevices));
-				} else if (ACTION_PASSPHRASE.equals(action)) {
+					setListAdapter(new ArrayAdapter<String>(TapLockSettings.this, android.R.layout.simple_list_item_1, mDevices));
+				} else if (ACTION_PASSPHRASE.equals(action))
 					setPassphrase(parsedDevice, deviceIdx);
-				}
 			}
 		})
 		.create();
@@ -415,65 +414,78 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 	public void onClick(View v) {
 		if (v.equals(mBtn_add)) {
 			// Get a set of currently paired devices
-			BluetoothAdapter btAdapter = BluetoothAdapter.getDefaultAdapter();
-			Set<BluetoothDevice> pairedDevices = btAdapter.getBondedDevices();
-			// launch dialog to select device
-			if (pairedDevices.size() > 0) {
-				mPairedDevices = new String[pairedDevices.size()];
-				int i = 0;
-				for (BluetoothDevice device : pairedDevices)
-					mPairedDevices[i++] = device.getName() + " " + device.getAddress();
-				mDialog = new AlertDialog.Builder(this)
-				.setItems(mPairedDevices, new DialogInterface.OnClickListener() {
+			final BluetoothAdapter btAdapter = BluetoothAdapter.getDefaultAdapter();
+			if (btAdapter.isEnabled()) {
+				Set<BluetoothDevice> pairedDevices = btAdapter.getBondedDevices();
+				// launch dialog to select device
+				if (pairedDevices.size() > 0) {
+					mPairedDevices = new String[pairedDevices.size()];
+					int i = 0;
+					for (BluetoothDevice device : pairedDevices)
+						mPairedDevices[i++] = device.getName() + " " + device.getAddress();
+					mDialog = new AlertDialog.Builder(TapLockSettings.this)
+					.setItems(mPairedDevices, new DialogInterface.OnClickListener() {
 
-					@Override
-					public void onClick(DialogInterface dialog, int which) {
-						addNewDevice(mPairedDevices[which]);
-					}
+						@Override
+						public void onClick(DialogInterface dialog, int which) {
+							addNewDevice(mPairedDevices[which]);
+						}
 
-				})
-				.setPositiveButton(getString(R.string.btn_bt_scan), new DialogInterface.OnClickListener() {
-					@Override
-					public void onClick(DialogInterface dialog, int which) {
-						//						startActivity(new Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS));
-						mUnpairedDevices = new String[0];
-						if (mServiceInterface != null) {
-							try {
-								mServiceInterface.requestDiscovery();
-								mProgressDialog = new ProgressDialog(TapLockUI.this);
-								mProgressDialog.setMessage(getString(R.string.msg_scanning));
-								mProgressDialog.setCancelable(true);
-								mProgressDialog.show();
-							} catch (RemoteException e) {
-								Log.e(TAG, e.toString());
+					})
+					.setPositiveButton(getString(R.string.btn_bt_scan), new DialogInterface.OnClickListener() {
+						@Override
+						public void onClick(DialogInterface dialog, int which) {
+							//						startActivity(new Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS));
+							mUnpairedDevices = new String[0];
+							if (mServiceInterface != null) {
+								try {
+									mServiceInterface.requestDiscovery();
+									mProgressDialog = new ProgressDialog(TapLockSettings.this);
+									mProgressDialog.setMessage(getString(R.string.msg_scanning));
+									mProgressDialog.setCancelable(true);
+									mProgressDialog.show();
+								} catch (RemoteException e) {
+									Log.e(TAG, e.toString());
+								}
 							}
 						}
+					})
+					.create();
+					mDialog.show();
+				} else {
+					mUnpairedDevices = new String[0];
+					if (mServiceInterface != null) {
+						try {
+							mServiceInterface.requestDiscovery();
+							mProgressDialog = new ProgressDialog(this);
+							mProgressDialog.setMessage(getString(R.string.msg_scanning));
+							mProgressDialog.setCancelable(true);
+							mProgressDialog.show();
+						} catch (RemoteException e) {
+							Log.e(TAG, e.toString());
+						}
+					}
+				}
+			} else {
+				mDialog = new AlertDialog.Builder(TapLockSettings.this)
+				.setMessage(R.string.msg_enable_bt)
+				.setPositiveButton(getString(android.R.string.ok), new DialogInterface.OnClickListener() {
+					@Override
+					public void onClick(DialogInterface dialog, int which) {
+						btAdapter.enable();
 					}
 				})
 				.create();
 				mDialog.show();
-			} else {
-				mUnpairedDevices = new String[0];
-				if (mServiceInterface != null) {
-					try {
-						mServiceInterface.requestDiscovery();
-						mProgressDialog = new ProgressDialog(this);
-						mProgressDialog.setMessage(getString(R.string.msg_scanning));
-						mProgressDialog.setCancelable(true);
-						mProgressDialog.show();
-					} catch (RemoteException e) {
-						Log.e(TAG, e.toString());
-					}
-				}
 			}
 		}
 	}
 
 	protected void setPassphrase(final String[] parsedDevice, final int deviceIdx) {
-		final EditText fld_passphrase = new EditText(TapLockUI.this);
+		final EditText fld_passphrase = new EditText(TapLockSettings.this);
 		// parse the existing passphrase
 		fld_passphrase.setText(parsedDevice[DEVICE_PASSPHRASE]);
-		mDialog = new AlertDialog.Builder(TapLockUI.this)
+		mDialog = new AlertDialog.Builder(TapLockSettings.this)
 		.setTitle("set passphrase")
 		.setView(fld_passphrase)
 		.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
@@ -494,7 +506,7 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 					String device = buildDeviceString(new String[]{parsedDevice[DEVICE_NAME], fld_passphrase.getText().toString(), parsedDevice[DEVICE_ADDRESS]});
 					// save the device
 					mDevices[deviceIdx] = device;
-					setListAdapter(new ArrayAdapter<String>(TapLockUI.this, android.R.layout.simple_list_item_1, mDevices));
+					setListAdapter(new ArrayAdapter<String>(TapLockSettings.this, android.R.layout.simple_list_item_1, mDevices));
 				}
 			}
 
@@ -550,9 +562,9 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 		newDeviceParts[DEVICE_PASSPHRASE] = "TapLock";
 		devices[mDevices.length] = buildDeviceString(newDeviceParts);
 		mDevices = devices;
-		setListAdapter(new ArrayAdapter<String>(TapLockUI.this, android.R.layout.simple_list_item_1, mDevices));
+		setListAdapter(new ArrayAdapter<String>(TapLockSettings.this, android.R.layout.simple_list_item_1, mDevices));
 		// set the passphrase
-		setPassphrase(TapLockUI.parseDeviceString(newDevice), mDevices.length - 1);
+		setPassphrase(TapLockSettings.parseDeviceString(newDevice), mDevices.length - 1);
 	}
 
 	@Override

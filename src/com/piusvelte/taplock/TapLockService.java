@@ -43,6 +43,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
@@ -50,18 +51,19 @@ import android.widget.RemoteViews;
 
 public class TapLockService extends Service implements OnSharedPreferenceChangeListener {
 	private static final String TAG = "TapLockService";
-	public static final String ACTION_TOGGLE = "com.piusvelte.remoteAuthClient.ACTION_TOGGLE";
-	public static final String ACTION_UNLOCK = "com.piusvelte.remoteAuthClient.ACTION_UNLOCK";
-	public static final String ACTION_LOCK = "com.piusvelte.remoteAuthClient.ACTION_LOCK";
-	public static final String ACTION_PASSPHRASE = "com.piusvelte.remoteAuthClient.ACTION_PASSPHRASE";
-	public static final String ACTION_TAG = "com.piusvelte.remoteAuthClient.ACTION_TAG";
-	public static final String ACTION_REMOVE = "com.piusvelte.remoteAuthClient.ACTION_REMOVE";
-	public static final String EXTRA_DEVICE_ADDRESS = "com.piusvelte.remoteAuthClient.EXTRA_DEVICE_ADDRESS";
-	public static final String EXTRA_DEVICE_NAME = "com.piusvelte.remoteAuthClient.EXTRA_DEVICE_NAME";
-	public static final String EXTRA_DEVICE_STATE = "com.piusvelte.remoteAuthClient.EXTRA_DEVICE_STATE";
+	public static final String ACTION_TOGGLE = "com.piusvelte.taplock.ACTION_TOGGLE";
+	public static final String ACTION_UNLOCK = "com.piusvelte.taplock.ACTION_UNLOCK";
+	public static final String ACTION_LOCK = "com.piusvelte.taplock.ACTION_LOCK";
+	public static final String ACTION_PASSPHRASE = "com.piusvelte.taplock.ACTION_PASSPHRASE";
+	public static final String ACTION_TAG = "com.piusvelte.taplock.ACTION_TAG";
+	public static final String ACTION_REMOVE = "com.piusvelte.taplock.ACTION_REMOVE";
+	public static final String EXTRA_DEVICE_ADDRESS = "com.piusvelte.taplock.EXTRA_DEVICE_ADDRESS";
+	public static final String EXTRA_DEVICE_NAME = "com.piusvelte.taplock.EXTRA_DEVICE_NAME";
+	public static final String EXTRA_DEVICE_STATE = "com.piusvelte.taplock.EXTRA_DEVICE_STATE";
 	public static final String PARAM_ACTION = "action";
 	public static final String PARAM_HMAC = "hmac";
 	public static final String PARAM_PASSPHRASE = "passphrase";
+	public static final String PARAM_CHALLENGE = "challenge";
 	public static final int DEVICE_NAME = 0;
 	public static final int DEVICE_PASSPHRASE = 1;
 	public static final int DEVICE_ADDRESS = 2;
@@ -74,8 +76,10 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 	private boolean mStartedBT = false;
 	private boolean mDeviceFound = false;
 	private String[] mDevices = new String[0];
-	private static final UUID sRemoteAuthServerUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+	private static final UUID sTapLockUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 	private int[] mThreadLock = new int[0];
+	private static final int MAX_CONNECTION_ATTEMPTS = 3;
+	private Handler mHandler = new Handler();
 
 	private ITapLockUI mUIInterface;
 	private final ITapLockService.Stub mServiceInterface = new ITapLockService.Stub() {
@@ -164,7 +168,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 					// connect if configured
 					String address = device.getAddress();
 					for (String d : mDevices) {
-						String[] parts = TapLockUI.parseDeviceString(d);
+						String[] parts = TapLockSettings.parseDeviceString(d);
 						if (parts[DEVICE_ADDRESS].equals(address)) {
 							// if queued
 							mDeviceFound = (mQueueAddress != null) && mQueueAddress.equals(address) && (mQueueState != null);
@@ -229,7 +233,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 				Set<String> widgets = sp.getStringSet(getString(R.string.key_widgets), (new HashSet<String>()));
 				Set<String> newWidgets = new HashSet<String>();
 				for (String widget : widgets) {
-					String[] widgetParts = TapLockUI.parseDeviceString(widget);
+					String[] widgetParts = TapLockSettings.parseDeviceString(widget);
 					if (!widgetParts[DEVICE_PASSPHRASE].equals(Integer.toString(appWidgetId)))
 						newWidgets.add(widget);
 				}
@@ -277,7 +281,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 		} else {
 			String name = getString(R.string.widget_device_name);
 			for (String widget : widgets) {
-				String[] widgetParts = TapLockUI.parseDeviceString(widget);
+				String[] widgetParts = TapLockSettings.parseDeviceString(widget);
 				if (widgetParts[DEVICE_PASSPHRASE].equals(Integer.toString(appWidgetId))) {
 					name = widgetParts[DEVICE_NAME];
 					break;
@@ -300,7 +304,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 				if (mConnectThread != null)
 					mConnectThread.shutdown();
 				// attempt connect
-				mConnectThread = new ConnectThread(address, action, passphrase, this);
+				mConnectThread = new ConnectThread(address, action, passphrase);
 				mConnectThread.start();
 			}
 			mQueueAddress = null;
@@ -328,183 +332,110 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 		private InputStream inStream;
 		private OutputStream outStream;
 		private String mAction;
-		private String mPassphrase = null;
-		private TapLockService mService = null;
+		private String mNewPassphrase = null;
 
-		public ConnectThread(String address, String action, String passphrase, TapLockService service) {
+		public ConnectThread(String address, String action, String newPassphrase) {
 			mAction = action;
 			mAddress = address;
-			mPassphrase = passphrase;
-			if (mPassphrase == null)
-				mPassphrase = "";
-			mService = service;
+			mNewPassphrase = newPassphrase;
+			if (mNewPassphrase == null)
+				mNewPassphrase = "";
 		}
 
 		public void run() {
 			mBtAdapter.cancelDiscovery();
 			BluetoothDevice device = mBtAdapter.getRemoteDevice(mAddress);
-			if (mService.mUIInterface != null) {
+			mHandler.post(new MessageSetter("connect to: " + mAddress));
+			int connectionAttempt;
+			for (connectionAttempt = 0; connectionAttempt < MAX_CONNECTION_ATTEMPTS; connectionAttempt++) {
 				try {
-					mService.mUIInterface.setMessage("connect to: " + mAddress);
-				} catch (RemoteException e) {
-					Log.e(TAG, e.getMessage());
-				}
-			}
-			try {
-				mSocket = device.createRfcommSocketToServiceRecord(sRemoteAuthServerUUID);
-				mSocket.connect();
-			} catch (IOException e) {
-				if (mService.mUIInterface != null) {
-					try {
-						mService.mUIInterface.setMessage("failed to get socket, or connect: " + e.getMessage());
-					} catch (RemoteException e1) {
-						Log.e(TAG, e1.getMessage());
-					}
-				}
-				shutdown();
-				return;
-			}
-			if (mAction == null) {
-				//pairing successful
-				if (mService.mUIInterface != null) {
-					try {
-						mService.mUIInterface.setPairingResult(device.getName() + " " + mAddress);
-					} catch (RemoteException e) {
-						Log.e(TAG, e.getMessage());
-					}
-				}
-			} else {
-				// Get the BluetoothSocket input and output streams
-				try {
-					inStream = mSocket.getInputStream();
-					outStream = mSocket.getOutputStream();
+					mSocket = device.createRfcommSocketToServiceRecord(sTapLockUUID);
+					mSocket.connect();
 				} catch (IOException e) {
-					if (mService.mUIInterface != null) {
-						try {
-							mService.mUIInterface.setMessage("failed to get streams: " + e.getMessage());
-						} catch (RemoteException e1) {
-							Log.e(TAG, e1.getMessage());
-						}
-					}
-					shutdown();
-					return;
+					mSocket = null;
 				}
-				byte[] buffer = new byte[1024];
-				int readBytes = -1;
-				try {
-					readBytes = inStream.read(buffer);
-				} catch (IOException e) {
-					if (mService.mUIInterface != null) {
+				if (mSocket != null) {
+					if (mAction == null)
+						mHandler.post(new PairingResultSetter(device.getName() + " " + mAddress));
+					else {
+						// Get the BluetoothSocket input and output streams
 						try {
-							mService.mUIInterface.setMessage("failed to read input stream: " + e.getMessage());
-						} catch (RemoteException e1) {
-							Log.e(TAG, e1.getMessage());
+							inStream = mSocket.getInputStream();
+							outStream = mSocket.getOutputStream();
+						} catch (IOException e) {
+							mHandler.post(new MessageSetter("failed to get streams: " + e.getMessage()));
+							shutdown();
+							return;
 						}
-					}
-				}
-				if (readBytes != -1) {
-					// construct a string from the valid bytes in the buffer
-					String message = new String(buffer, 0, readBytes);
-					// listen for challenge, then process a response
-					String challenge = null;
-					if ((message.length() > 10) && (message.substring(0, 9).equals("challenge"))) {
-						challenge = message.substring(10);
-						// get passphrase
-						String passphrase = null;
-						for (String d : mDevices) {
-							String[] parts = TapLockUI.parseDeviceString(d);
-							if (parts[DEVICE_ADDRESS].equals(mAddress)) {
-								if ((passphrase = parts[DEVICE_PASSPHRASE]) != null) {
-									if (challenge != null) {
-										try {
-											JSONObject requestJObj = new JSONObject();
+						byte[] buffer = new byte[1024];
+						int readBytes = -1;
+						try {
+							readBytes = inStream.read(buffer);
+						} catch (IOException e) {
+							mHandler.post(new MessageSetter("failed to read input stream: " + e.getMessage()));
+						}
+						if (readBytes != -1) {
+							// construct a string from the valid bytes in the buffer
+							String responseStr = new String(buffer, 0, readBytes);
+							JSONObject responseJObj;
+							String challenge = null;
+							try {
+								responseJObj = new JSONObject(responseStr);
+								if (responseJObj.has(PARAM_CHALLENGE))
+									challenge = responseJObj.getString(PARAM_CHALLENGE);
+							} catch (JSONException e) {
+								mHandler.post(new MessageSetter("failed to parse response: " + responseStr + ", " + e.getMessage()));
+							}
+							if (challenge != null) {
+								// get passphrase
+								String passphrase = null;
+								for (String d : mDevices) {
+									String[] parts = TapLockSettings.parseDeviceString(d);
+									if (parts[DEVICE_ADDRESS].equals(mAddress)) {
+										if ((passphrase = parts[DEVICE_PASSPHRASE]) != null) {
 											try {
-												requestJObj.put(PARAM_ACTION, mAction);
-												if (ACTION_PASSPHRASE.equals(mAction))
-													requestJObj.put(PARAM_PASSPHRASE, mPassphrase);
-												requestJObj.put(PARAM_HMAC, getHashString(challenge + passphrase + mAction + mPassphrase));
-												String requestStr = requestJObj.toString();
-												byte[] requestBytes = requestStr.getBytes();
-												outStream.write(requestBytes);
-												if (ACTION_PASSPHRASE.equals(mAction) && (mService.mUIInterface != null)) {
-													try {
-														mService.mUIInterface.setPassphrase(mAddress, mPassphrase);
-													} catch (RemoteException e) {
-														Log.e(TAG, e.getMessage());
-													}
-												}
-											} catch (JSONException e) {
-												if (mService.mUIInterface != null) {
-													try {
-														mService.mUIInterface.setMessage("failed to build request: " + e.getMessage());
-													} catch (RemoteException e1) {
-														Log.e(TAG, e1.getMessage());
-													}
-												}
-											}
-										} catch (NoSuchAlgorithmException e) {
-											if (mService.mUIInterface != null) {
+												JSONObject requestJObj = new JSONObject();
 												try {
-													mService.mUIInterface.setMessage("failed to get hash string: " + e.getMessage());
-												} catch (RemoteException e1) {
-													Log.e(TAG, e1.getMessage());
+													requestJObj.put(PARAM_ACTION, mAction);
+													if (ACTION_PASSPHRASE.equals(mAction))
+														requestJObj.put(PARAM_PASSPHRASE, mNewPassphrase);
+													requestJObj.put(PARAM_HMAC, getHashString(challenge + passphrase + mAction + mNewPassphrase));
+													String requestStr = requestJObj.toString();
+													byte[] requestBytes = requestStr.getBytes();
+													outStream.write(requestBytes);
+													if (ACTION_PASSPHRASE.equals(mAction))
+														mHandler.post(new PassphraseSetter(mAddress, mNewPassphrase));
+												} catch (JSONException e) {
+													mHandler.post(new MessageSetter("failed to build request: " + e.getMessage()));
 												}
-											}
-										} catch (UnsupportedEncodingException e) {
-											if (mService.mUIInterface != null) {
-												try {
-													mService.mUIInterface.setMessage("failed to get hash string: " + e.getMessage());
-												} catch (RemoteException e1) {
-													Log.e(TAG, e1.getMessage());
-												}
-											}
-										} catch (IOException e) {
-											if (mService.mUIInterface != null) {
-												try {
-													mService.mUIInterface.setMessage("failed to write to output stream: " + e.getMessage());
-												} catch (RemoteException e1) {
-													Log.e(TAG, e1.getMessage());
-												}
+											} catch (NoSuchAlgorithmException e) {
+												mHandler.post(new MessageSetter("failed to get hash string: " + e.getMessage()));
+											} catch (UnsupportedEncodingException e) {
+												mHandler.post(new MessageSetter("failed to get hash string: " + e.getMessage()));
+											} catch (IOException e) {
+												mHandler.post(new MessageSetter("failed to write to output stream: " + e.getMessage()));
 											}
 										}
+										break;
 									}
 								}
-								break;
-							}
-						}
-						if ((passphrase == null) && (mService.mUIInterface != null)) {
-							try {
-								mService.mUIInterface.setMessage("no passphrase found for device");
-							} catch (RemoteException e) {
-								Log.e(TAG, e.getMessage());
-							}
-						}
-					} else if (mService.mUIInterface != null) {
-						try {
-							mService.mUIInterface.setMessage("failed to receive a challenge");
-						} catch (RemoteException e) {
-							Log.e(TAG, e.getMessage());
-						}
+								if (passphrase == null)
+									mHandler.post(new MessageSetter("no passphrase found for device"));
+							} else
+								mHandler.post(new MessageSetter("failed to receive a challenge"));
+						} else
+							mHandler.post(new MessageSetter("failed to read input stream"));
 					}
-				} else if (mService.mUIInterface != null) {
-					try {
-						mService.mUIInterface.setMessage("failed to read input stream");
-					} catch (RemoteException e) {
-						Log.e(TAG, e.getMessage());
-					}
+					break;
 				}
 			}
+			if (connectionAttempt == MAX_CONNECTION_ATTEMPTS)
+				mHandler.post(new MessageSetter("failed to get socket, or connect"));
 			shutdown();
 		}
 
 		public void shutdown() {
-			if (mService.mUIInterface != null) {
-				try {
-					mService.mUIInterface.setMessage("connect thread shutdown");
-				} catch (RemoteException e) {
-					Log.e(TAG, e.getMessage());
-				}
-			}
+			mHandler.post(new MessageSetter("connect thread shutdown"));
 			if (inStream != null) {
 				try {
 					inStream.close();
@@ -530,14 +461,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 				mSocket = null;
 			}
 			mConnectThread = null;
-			if (mService.mUIInterface != null) {
-				try {
-					mService.mUIInterface.setStateFinished();
-				} catch (RemoteException e) {
-					Log.e(TAG, e.getMessage());
-				}
-			} else
-				mService.stopSelf();
+			mHandler.post(new StateFinishedSetter());
 		}
 	}
 
@@ -556,4 +480,84 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 		}
 	}
 
+	class MessageSetter implements Runnable {
+
+		String mMessage = null;
+
+		public MessageSetter(String message) {
+			mMessage = message;
+		}
+
+		@Override
+		public void run() {
+			Log.d(TAG, "Message: " + mMessage);
+			if (mUIInterface != null) {
+				try {
+					mUIInterface.setMessage(mMessage);
+				} catch (RemoteException e) {
+					Log.e(TAG, e.getMessage());
+				}
+			}
+		}		
+	}
+
+	class PairingResultSetter implements Runnable {
+
+		String mDevice = null;
+
+		public PairingResultSetter(String device) {
+			mDevice = device;
+		}
+
+		@Override
+		public void run() {
+			Log.d(TAG, "Pairing result: " + mDevice);
+			if (mUIInterface != null) {
+				try {
+					mUIInterface.setPairingResult(mDevice);
+				} catch (RemoteException e) {
+					Log.e(TAG, e.getMessage());
+				}
+			}
+		}
+	}
+
+	class PassphraseSetter implements Runnable {
+
+		String mAddress = null;
+		String mPassphrase = null;
+
+		public PassphraseSetter(String address, String passphrase) {
+			mAddress = address;
+			mPassphrase = passphrase;
+		}
+
+		@Override
+		public void run() {
+			Log.d(TAG, "Passphrase result: " + mPassphrase);
+			if (mUIInterface != null) {
+				try {
+					mUIInterface.setPassphrase(mAddress, mPassphrase);
+				} catch (RemoteException e) {
+					Log.e(TAG, e.getMessage());
+				}
+			}
+		}
+	}
+
+	class StateFinishedSetter implements Runnable {
+
+		@Override
+		public void run() {
+			Log.d(TAG, "state finished");
+			if (mUIInterface != null) {
+				try {
+					mUIInterface.setStateFinished();
+				} catch (RemoteException e) {
+					Log.e(TAG, e.getMessage());
+				}
+			} else
+				stopSelf();
+		}
+	}
 }

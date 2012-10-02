@@ -167,9 +167,9 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 							Log.d(TAG, "taggedDeviceName: " + taggedDeviceName);
 							String[] parsedDevice = null;
 							for (String device : mDevices) {
-								String deviceName = TapLockUI.parseDeviceString(device)[0];
+								String deviceName = TapLockSettings.parseDeviceString(device)[0];
 								if (deviceName.equals(taggedDeviceName)) {
-									parsedDevice = TapLockUI.parseDeviceString(device);
+									parsedDevice = TapLockSettings.parseDeviceString(device);
 									break;
 								}
 							}
@@ -193,9 +193,9 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 				if ((ACTION_UNLOCK.equals(action) || ACTION_LOCK.equals(action) || ACTION_TOGGLE.equals(action)) && (taggedDeviceName != null)) {
 					String[] parsedDevice = null;
 					for (String device : mDevices) {
-						String deviceName = TapLockUI.parseDeviceString(device)[0];
+						String deviceName = TapLockSettings.parseDeviceString(device)[0];
 						if (deviceName.equals(taggedDeviceName)) {
-							parsedDevice = TapLockUI.parseDeviceString(device);
+							parsedDevice = TapLockSettings.parseDeviceString(device);
 							break;
 						}
 					}

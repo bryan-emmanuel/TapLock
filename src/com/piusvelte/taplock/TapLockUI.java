@@ -32,7 +32,6 @@ import static com.piusvelte.taplock.TapLockService.DEVICE_PASSPHRASE;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Set;
 
 import android.app.AlertDialog;
@@ -94,7 +93,7 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 		public void setMessage(String message) throws RemoteException {
 			Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
 		}
-		
+
 		@Override
 		public void setUnpairedDevice(String device) throws RemoteException {
 			if ((mProgressDialog != null) && mProgressDialog.isShowing()) {
@@ -105,7 +104,7 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 				mUnpairedDevices = unpairedDevices;
 			}
 		}
-		
+
 		@Override
 		public void setDiscoveryFinished() throws RemoteException {
 			if ((mProgressDialog != null) && mProgressDialog.isShowing()) {
@@ -146,6 +145,23 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 		@Override
 		public void setPairingResult(String device) throws RemoteException {
 			addNewDevice(device);
+		}
+
+		@Override
+		public void setPassphrase(String address, String passphrase) throws RemoteException {
+			if (address != null) {
+				for (int i = 0, l = mDevices.length; i < l; i++) {
+					String[] deviceParts = parseDeviceString(mDevices[i]);
+					if (deviceParts[DEVICE_ADDRESS].equals(address)) {
+						String device = buildDeviceString(new String[]{deviceParts[DEVICE_NAME], passphrase, deviceParts[DEVICE_ADDRESS]});
+						// save the device
+						mDevices[i] = device;
+						setListAdapter(new ArrayAdapter<String>(TapLockUI.this, android.R.layout.simple_list_item_1, mDevices));
+						break;
+					}
+				}
+			} else
+				Toast.makeText(getApplicationContext(), "failed to set passphrase", Toast.LENGTH_SHORT).show();
 		}
 
 	};
@@ -253,13 +269,10 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 			if (devices != null) {
 				mDevices = new String[devices.size()];
 				int d = 0;
-				Iterator<String> iter = devices.iterator();
-				while (iter.hasNext()) {
-					mDevices[d++] = iter.next();
-				}
-			} else {
+				for (String device : devices)
+					mDevices[d++] = device;
+			} else
 				mDevices = new String[0];
-			}
 			setListAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mDevices));
 
 			// check if configuring a widget
@@ -315,9 +328,8 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 				mProgressDialog.cancel();
 			// save devices
 			Set<String> devices = new HashSet<String>();
-			for (String device : mDevices) {
+			for (String device : mDevices)
 				devices.add(device);
-			}
 			SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE);
 			SharedPreferences.Editor spe = sp.edit();
 			spe.putStringSet(getString(R.string.key_devices), devices);
@@ -341,7 +353,7 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 					// attempt to connect to the device
 					if (mServiceInterface != null) {
 						try {
-							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], action);
+							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], action, null);
 						} catch (RemoteException e) {
 							Log.e(TAG, e.toString());
 						}
@@ -389,9 +401,8 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 			int p = 0;
 			String[] devices = new String[mDevices.length - 1];
 			for (int i = 0, l = mDevices.length; i < l; i++) {
-				if (!mDevices[i].equals(mDevices[id])) {
+				if (!mDevices[i].equals(mDevices[id]))
 					devices[p++] = mDevices[i];
-				}
 			}
 			mDevices = devices;
 			setListAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mDevices));
@@ -410,9 +421,8 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 			if (pairedDevices.size() > 0) {
 				mPairedDevices = new String[pairedDevices.size()];
 				int i = 0;
-				for (BluetoothDevice device : pairedDevices) {
+				for (BluetoothDevice device : pairedDevices)
 					mPairedDevices[i++] = device.getName() + " " + device.getAddress();
-				}
 				mDialog = new AlertDialog.Builder(this)
 				.setItems(mPairedDevices, new DialogInterface.OnClickListener() {
 
@@ -425,7 +435,7 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 				.setPositiveButton(getString(R.string.btn_bt_scan), new DialogInterface.OnClickListener() {
 					@Override
 					public void onClick(DialogInterface dialog, int which) {
-//						startActivity(new Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS));
+						//						startActivity(new Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS));
 						mUnpairedDevices = new String[0];
 						if (mServiceInterface != null) {
 							try {
@@ -458,7 +468,7 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 			}
 		}
 	}
-	
+
 	protected void setPassphrase(final String[] parsedDevice, final int deviceIdx) {
 		final EditText fld_passphrase = new EditText(TapLockUI.this);
 		// parse the existing passphrase
@@ -471,10 +481,21 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 			@Override
 			public void onClick(DialogInterface dialog, int which) {
 				dialog.cancel();
-				String device = buildDeviceString(new String[]{parsedDevice[DEVICE_NAME], fld_passphrase.getText().toString(), parsedDevice[DEVICE_ADDRESS]});
-				// save the device
-				mDevices[deviceIdx] = device;
-				setListAdapter(new ArrayAdapter<String>(TapLockUI.this, android.R.layout.simple_list_item_1, mDevices));
+				boolean storeImmediately = false;
+				if (mServiceInterface != null) {
+					try {
+						mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], ACTION_PASSPHRASE, fld_passphrase.getText().toString());
+						storeImmediately = true;
+					} catch (RemoteException e) {
+						e.printStackTrace();
+					}
+				}
+				if (!storeImmediately) {
+					String device = buildDeviceString(new String[]{parsedDevice[DEVICE_NAME], fld_passphrase.getText().toString(), parsedDevice[DEVICE_ADDRESS]});
+					// save the device
+					mDevices[deviceIdx] = device;
+					setListAdapter(new ArrayAdapter<String>(TapLockUI.this, android.R.layout.simple_list_item_1, mDevices));
+				}
 			}
 
 		})
@@ -520,25 +541,18 @@ public class TapLockUI extends ListActivity implements OnClickListener, ServiceC
 	}
 
 	private void addNewDevice(String newDevice) {
-		boolean exists = false;
-		if (newDevice.length() > 0) {
-			for (String device : mDevices) {
-				if (newDevice.equals(device))
-					exists = true;
-			}
-		} else
-			exists = true;
-		if (!exists) {
-			// new device
-			String[] devices = new String[mDevices.length + 1];
-			for (int i = 0, l = mDevices.length; i < l; i++)
-				devices[i] = mDevices[i];
-			devices[mDevices.length] = newDevice;
-			mDevices = devices;
-			setListAdapter(new ArrayAdapter<String>(TapLockUI.this, android.R.layout.simple_list_item_1, mDevices));
-			// set the passphrase
-			setPassphrase(TapLockUI.parseDeviceString(newDevice), mDevices.length - 1);
-		}
+		// new device
+		String[] devices = new String[mDevices.length + 1];
+		for (int i = 0, l = mDevices.length; i < l; i++)
+			devices[i] = mDevices[i];
+		String[] newDeviceParts = parseDeviceString(newDevice);
+		// set the initial passphrase
+		newDeviceParts[DEVICE_PASSPHRASE] = "TapLock";
+		devices[mDevices.length] = buildDeviceString(newDeviceParts);
+		mDevices = devices;
+		setListAdapter(new ArrayAdapter<String>(TapLockUI.this, android.R.layout.simple_list_item_1, mDevices));
+		// set the passphrase
+		setPassphrase(TapLockUI.parseDeviceString(newDevice), mDevices.length - 1);
 	}
 
 	@Override

@@ -21,7 +21,7 @@ package com.piusvelte.taplock;
 
 interface ITapLockService {
 	void setCallback(in IBinder uiBinder);
-	void write(String address, String message);
+	void write(String address, String action, String passphrase);
 	void requestDiscovery();
 	void pairDevice(String address);
 	void stop();

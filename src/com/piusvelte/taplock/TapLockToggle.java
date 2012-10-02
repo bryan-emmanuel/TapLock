@@ -24,9 +24,7 @@ import static com.piusvelte.taplock.TapLockService.ACTION_TOGGLE;
 import static com.piusvelte.taplock.TapLockService.ACTION_UNLOCK;
 import static com.piusvelte.taplock.TapLockService.DEVICE_ADDRESS;
 
-
 import java.io.UnsupportedEncodingException;
-import java.util.Iterator;
 import java.util.Set;
 
 import android.app.Activity;
@@ -76,6 +74,10 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 		public void setPairingResult(String device) throws RemoteException {
 		}
 
+		@Override
+		public void setPassphrase(String address, String passphrase) throws RemoteException {
+		}
+
 	};
 
 	@Override
@@ -99,13 +101,10 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 		if (devices != null) {
 			mDevices = new String[devices.size()];
 			int d = 0;
-			Iterator<String> iter = devices.iterator();
-			while (iter.hasNext()) {
-				mDevices[d++] = iter.next();
-			}
-		} else {
+			for (String device : devices)
+				mDevices[d++] = device;
+		} else
 			mDevices = new String[0];
-		}
 		// start the service before binding so that the service stays around for faster future connections
 		startService(new Intent(this, TapLockService.class));
 		bindService(new Intent(this, TapLockService.class), this, BIND_AUTO_CREATE);
@@ -176,7 +175,7 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 							}
 							if (parsedDevice != null) {
 								try {
-									mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], ACTION_TOGGLE);
+									mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], ACTION_TOGGLE, null);
 								} catch (RemoteException e) {
 									Log.e(TAG, e.toString());
 								}
@@ -202,7 +201,7 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 					}
 					if (parsedDevice != null) {
 						try {
-							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], action);
+							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], action, null);
 						} catch (RemoteException e) {
 							Log.e(TAG, e.toString());
 						}

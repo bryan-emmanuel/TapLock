@@ -19,7 +19,7 @@
  *  Bryan Emmanuel piusvelte@gmail.com
  -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.piusvelte.taplockclient"
+    package="com.piusvelte.taplock"
     android:versionCode="1"
     android:versionName="1.0" >
 

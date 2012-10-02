@@ -25,4 +25,5 @@ interface ITapLockUI {
 	void setDiscoveryFinished();
 	void setStateFinished();
 	void setPairingResult(String device);
+	void setPassphrase(String address, String passphrase);
 }

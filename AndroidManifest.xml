@@ -19,7 +19,7 @@
  *  Bryan Emmanuel piusvelte@gmail.com
  -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.piusvelte.remoteauthclient"
+    package="com.piusvelte.taplockclient"
     android:versionCode="1"
     android:versionName="1.0" >
 
@@ -35,7 +35,7 @@
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name" >
         <activity
-            android:name=".RemoteAuthClientUI"
+            android:name=".TapLockSettings"
             android:label="@string/app_name"
             android:launchMode="singleTop">
             <intent-filter>
@@ -54,7 +54,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".RemoteAuthClientToggle"
+            android:name="com.piusvelte.taplock.TapLockTap"
             android:label="@string/app_name"
             android:launchMode="singleTop">
             <intent-filter>
@@ -69,18 +69,18 @@
                 <data android:scheme="rac" />
             </intent-filter>
         </activity>
-        <service android:name=".RemoteAuthClientService" />
-		<receiver android:name=".RemoteAuthClientWidget" android:label="@string/app_name">
+        <service android:name="com.piusvelte.taplock.TapLockService" />
+		<receiver android:name=".TapLockWidget" android:label="@string/app_name">
 			<intent-filter>
 				<action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
 			</intent-filter>
 			<intent-filter>
-				<action android:name="com.piusvelte.remoteauthclient.ACTION_TOGGLE" />
+				<action android:name="com.piusvelte.taplock.ACTION_TOGGLE" />
 			</intent-filter>
 			<meta-data android:name="android.appwidget.provider"
 				android:resource="@xml/widget_1x1" />
 		</receiver>
-		<receiver android:name=".RemoteAuthClientReceiver">
+		<receiver android:name="com.piusvelte.taplock.TapLockReceiver">
 		    <intent-filter>
 		        <action android:name="android.bluetooth.adapter.action.STATE_CHANGED" />
 		    </intent-filter>

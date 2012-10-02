@@ -1,5 +1,5 @@
 /*
- * RemoteAuthClient
+ * TapLock
  * Copyright (C) 2012 Bryan Emmanuel
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
  *  
  *  Bryan Emmanuel piusvelte@gmail.com
  */
-package com.piusvelte.remoteauthclient;
+package com.piusvelte.taplock;
 
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
@@ -25,22 +25,22 @@ import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
 
-public class RemoteAuthClientWidget extends AppWidgetProvider {
-	private static final String TAG = "RemoteAuthClientWidget";
+public class TapLockWidget extends AppWidgetProvider {
+	private static final String TAG = "TapLockWidget";
 
 	@Override
 	public void onReceive(Context context, Intent intent) {
 		String action = intent.getAction();
 		Log.d(TAG, "action: " + action);
 		if (action.equals(AppWidgetManager.ACTION_APPWIDGET_UPDATE)) {
-			context.startService(intent.setClass(context, RemoteAuthClientService.class));
-		} else if (action.equals(RemoteAuthClientService.ACTION_TOGGLE)) {
-			if (intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS)) {
+			context.startService(intent.setClass(context, TapLockService.class));
+		} else if (action.equals(TapLockService.ACTION_TOGGLE)) {
+			if (intent.hasExtra(TapLockService.EXTRA_DEVICE_ADDRESS)) {
 				// signal service
-				context.startService(intent.setClass(context, RemoteAuthClientService.class));
+				context.startService(intent.setClass(context, TapLockService.class));
 			}
 		} else if (action.equals(AppWidgetManager.ACTION_APPWIDGET_DELETED)) {
-			context.startService(intent.setClass(context, RemoteAuthClientService.class));
+			context.startService(intent.setClass(context, TapLockService.class));
 		} else super.onReceive(context, intent);
 	}
 

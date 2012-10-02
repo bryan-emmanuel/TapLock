@@ -1,5 +1,5 @@
 /*
- * RemoteAuthClient
+ * TapLock
  * Copyright (C) 2012 Bryan Emmanuel
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
  *  
  *  Bryan Emmanuel piusvelte@gmail.com
  */
-package com.piusvelte.remoteauthclient;
+package com.piusvelte.taplock;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,6 +29,9 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.UUID;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import android.app.PendingIntent;
 import android.app.Service;
@@ -46,12 +49,22 @@ import android.os.RemoteException;
 import android.util.Log;
 import android.widget.RemoteViews;
 
-public class RemoteAuthClientService extends Service implements OnSharedPreferenceChangeListener {
-	private static final String TAG = "RemoteAuthClientService";
+public class TapLockService extends Service implements OnSharedPreferenceChangeListener {
+	private static final String TAG = "TapLockService";
 	public static final String ACTION_TOGGLE = "com.piusvelte.remoteAuthClient.ACTION_TOGGLE";
+	public static final String ACTION_UNLOCK = "com.piusvelte.remoteAuthClient.ACTION_UNLOCK";
+	public static final String ACTION_LOCK = "com.piusvelte.remoteAuthClient.ACTION_LOCK";
+	public static final String ACTION_PASSPHRASE = "com.piusvelte.remoteAuthClient.ACTION_PASSPHRASE";
+	public static final String ACTION_TAG = "com.piusvelte.remoteAuthClient.ACTION_TAG";
+	public static final String ACTION_REMOVE = "com.piusvelte.remoteAuthClient.ACTION_REMOVE";
 	public static final String EXTRA_DEVICE_ADDRESS = "com.piusvelte.remoteAuthClient.EXTRA_DEVICE_ADDRESS";
 	public static final String EXTRA_DEVICE_NAME = "com.piusvelte.remoteAuthClient.EXTRA_DEVICE_NAME";
 	public static final String EXTRA_DEVICE_STATE = "com.piusvelte.remoteAuthClient.EXTRA_DEVICE_STATE";
+	public static final String PARAM_ACTION = "action";
+	public static final String PARAM_HMAC = "hmac";
+	public static final int DEVICE_NAME = 0;
+	public static final int DEVICE_PASSPHRASE = 1;
+	public static final int DEVICE_ADDRESS = 2;
 	private BluetoothAdapter mBtAdapter;
 	private ConnectThread mConnectThread;
 	private String mQueueAddress;
@@ -87,13 +100,13 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 		}
 	};
 
-	private IRemoteAuthClientUI mUIInterface;
-	private final IRemoteAuthClientService.Stub mServiceInterface = new IRemoteAuthClientService.Stub() {
+	private ITapLockUI mUIInterface;
+	private final ITapLockService.Stub mServiceInterface = new ITapLockService.Stub() {
 
 		@Override
 		public void setCallback(IBinder uiBinder) throws RemoteException {
 			if (uiBinder != null)
-				mUIInterface = IRemoteAuthClientUI.Stub.asInterface(uiBinder);
+				mUIInterface = ITapLockUI.Stub.asInterface(uiBinder);
 		}
 
 		@Override
@@ -164,8 +177,8 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 					// connect if configured
 					String address = device.getAddress();
 					for (String d : mDevices) {
-						String[] parts = RemoteAuthClientUI.parseDeviceString(d);
-						if (parts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(address)) {
+						String[] parts = TapLockUI.parseDeviceString(d);
+						if (parts[DEVICE_ADDRESS].equals(address)) {
 							// if queued
 							mDeviceFound = (mQueueAddress != null) && mQueueAddress.equals(address) && (mQueueState != null);
 							break;
@@ -194,7 +207,7 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 				}
 			} else if (ACTION_TOGGLE.equals(action) && intent.hasExtra(EXTRA_DEVICE_ADDRESS)) {
 				String address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS);
-				requestWrite(address, Integer.toString(RemoteAuthClientUI.STATE_TOGGLE));
+				requestWrite(address, ACTION_TOGGLE);
 			} else if (AppWidgetManager.ACTION_APPWIDGET_UPDATE.equals(action)) {
 				// create widget
 				AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(this);
@@ -203,12 +216,12 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 				if (intent.hasExtra(AppWidgetManager.EXTRA_APPWIDGET_ID)) {
 					int appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
 					// check if the widget exists, otherwise add it
-					if (intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME) && intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS)) {
+					if (intent.hasExtra(TapLockService.EXTRA_DEVICE_NAME) && intent.hasExtra(TapLockService.EXTRA_DEVICE_ADDRESS)) {
 						Set<String> newWidgets = new HashSet<String>();
 						for (String widget : widgets)
 							newWidgets.add(widget);
-						String name = intent.getStringExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME);
-						String address = intent.getStringExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS);
+						String name = intent.getStringExtra(TapLockService.EXTRA_DEVICE_NAME);
+						String address = intent.getStringExtra(TapLockService.EXTRA_DEVICE_ADDRESS);
 						String widgetString = name + " " + Integer.toString(appWidgetId) + " " + address;
 						// store the widget
 						if (!newWidgets.contains(widgetString))
@@ -229,8 +242,8 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 				Set<String> widgets = sp.getStringSet(getString(R.string.key_widgets), (new HashSet<String>()));
 				Set<String> newWidgets = new HashSet<String>();
 				for (String widget : widgets) {
-					String[] widgetParts = RemoteAuthClientUI.parseDeviceString(widget);
-					if (!widgetParts[RemoteAuthClientUI.DEVICE_PASSPHRASE].equals(Integer.toString(appWidgetId)))
+					String[] widgetParts = TapLockUI.parseDeviceString(widget);
+					if (!widgetParts[DEVICE_PASSPHRASE].equals(Integer.toString(appWidgetId)))
 						newWidgets.add(widget);
 				}
 				SharedPreferences.Editor spe = sp.edit();
@@ -272,25 +285,25 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 
 	private RemoteViews buildWidget(Intent intent, int appWidgetId, Set<String> widgets) {
 		RemoteViews views = new RemoteViews(getPackageName(), R.layout.widget);
-		if (intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME)) {
-			views.setTextViewText(R.id.device_name, intent.getStringExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME));
+		if (intent.hasExtra(TapLockService.EXTRA_DEVICE_NAME)) {
+			views.setTextViewText(R.id.device_name, intent.getStringExtra(TapLockService.EXTRA_DEVICE_NAME));
 		} else {
 			String name = getString(R.string.widget_device_name);
 			for (String widget : widgets) {
-				String[] widgetParts = RemoteAuthClientUI.parseDeviceString(widget);
-				if (widgetParts[RemoteAuthClientUI.DEVICE_PASSPHRASE].equals(Integer.toString(appWidgetId))) {
-					name = widgetParts[RemoteAuthClientUI.DEVICE_NAME];
+				String[] widgetParts = TapLockUI.parseDeviceString(widget);
+				if (widgetParts[DEVICE_PASSPHRASE].equals(Integer.toString(appWidgetId))) {
+					name = widgetParts[DEVICE_NAME];
 					break;
 				}
 			}
 			views.setTextViewText(R.id.device_name, name);
 		}
-		if (intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_STATE))
-			views.setTextViewText(R.id.device_state, intent.getStringExtra(RemoteAuthClientService.EXTRA_DEVICE_STATE));
+		if (intent.hasExtra(TapLockService.EXTRA_DEVICE_STATE))
+			views.setTextViewText(R.id.device_state, intent.getStringExtra(TapLockService.EXTRA_DEVICE_STATE));
 		else
 			views.setTextViewText(R.id.device_state, getString(R.string.widget_device_state));
-		if (intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS))
-			views.setOnClickPendingIntent(R.id.widget, PendingIntent.getBroadcast(this, 0, new Intent(this, RemoteAuthClientWidget.class).setAction(RemoteAuthClientService.ACTION_TOGGLE).putExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS, intent.getStringExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS)), 0));
+		if (intent.hasExtra(TapLockService.EXTRA_DEVICE_ADDRESS))
+			views.setOnClickPendingIntent(R.id.widget, PendingIntent.getBroadcast(this, 0, new Intent(this, TapLockWidget.class).setAction(TapLockService.ACTION_TOGGLE).putExtra(TapLockService.EXTRA_DEVICE_ADDRESS, intent.getStringExtra(TapLockService.EXTRA_DEVICE_ADDRESS)), 0));
 		return views;
 	}
 
@@ -379,13 +392,22 @@ public class RemoteAuthClientService extends Service implements OnSharedPreferen
 						// get passphrase
 						String passphrase = null;
 						for (String d : mDevices) {
-							String[] parts = RemoteAuthClientUI.parseDeviceString(d);
-							if (parts[RemoteAuthClientUI.DEVICE_ADDRESS].equals(mAddress)) {
-								if ((passphrase = parts[RemoteAuthClientUI.DEVICE_PASSPHRASE]) != null) {
+							String[] parts = TapLockUI.parseDeviceString(d);
+							if (parts[DEVICE_ADDRESS].equals(mAddress)) {
+								if ((passphrase = parts[DEVICE_PASSPHRASE]) != null) {
 									if (challenge != null) {
 										try {
-											String request = getHashString(challenge + passphrase + mState);
-											outStream.write(request.getBytes());
+											JSONObject requestJObj = new JSONObject();
+											try {
+												requestJObj.put(PARAM_ACTION, mState);
+												requestJObj.put(PARAM_HMAC, getHashString(challenge + passphrase + mState));
+												String requestStr = requestJObj.toString();
+												byte[] requestBytes = requestStr.getBytes();
+												outStream.write(requestBytes);
+											} catch (JSONException e) {
+												mMessage = "failed to build request: " + e.getMessage();
+												mHandler.post(mRunnable);
+											}
 										} catch (NoSuchAlgorithmException e) {
 											mMessage = "failed to get hash string: " + e.getMessage();
 											mHandler.post(mRunnable);

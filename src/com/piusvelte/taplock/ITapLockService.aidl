@@ -1,5 +1,5 @@
 /*
- * RemoteAuthClient
+ * TapLock
  * Copyright (C) 2012 Bryan Emmanuel
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,9 +17,9 @@
  *  
  *  Bryan Emmanuel piusvelte@gmail.com
  */
-package com.piusvelte.remoteauthclient;
+package com.piusvelte.taplock;
 
-interface IRemoteAuthClientService {
+interface ITapLockService {
 	void setCallback(in IBinder uiBinder);
 	void write(String address, String message);
 	void requestDiscovery();

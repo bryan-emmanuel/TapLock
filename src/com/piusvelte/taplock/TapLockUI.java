@@ -1,5 +1,5 @@
 /*
- * RemoteAuthClient
+ * TapLock
  * Copyright (C) 2012 Bryan Emmanuel
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,17 @@
  *  
  *  Bryan Emmanuel piusvelte@gmail.com
  */
-package com.piusvelte.remoteauthclient;
+package com.piusvelte.taplock;
+
+import static com.piusvelte.taplock.TapLockService.ACTION_LOCK;
+import static com.piusvelte.taplock.TapLockService.ACTION_PASSPHRASE;
+import static com.piusvelte.taplock.TapLockService.ACTION_REMOVE;
+import static com.piusvelte.taplock.TapLockService.ACTION_TAG;
+import static com.piusvelte.taplock.TapLockService.ACTION_TOGGLE;
+import static com.piusvelte.taplock.TapLockService.ACTION_UNLOCK;
+import static com.piusvelte.taplock.TapLockService.DEVICE_ADDRESS;
+import static com.piusvelte.taplock.TapLockService.DEVICE_NAME;
+import static com.piusvelte.taplock.TapLockService.DEVICE_PASSPHRASE;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -63,8 +73,8 @@ import android.widget.ListView;
 import android.widget.AdapterView.AdapterContextMenuInfo;
 import android.widget.Toast;
 
-public class RemoteAuthClientUI extends ListActivity implements OnClickListener, ServiceConnection {
-	private static final String TAG = "RemoteAuthClientUI";
+public class TapLockUI extends ListActivity implements OnClickListener, ServiceConnection {
+	private static final String TAG = "TapLockUI";
 	private Button mBtn_add;
 	private ProgressDialog mProgressDialog;
 	private AlertDialog mDialog;
@@ -73,23 +83,12 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 	private String[] mUnpairedDevices = new String[0];
 	private static final int REMOVE_ID = Menu.FIRST;
 
-	public static final int STATE_UNLOCK = 0;
-	public static final int STATE_LOCK = 1;
-	public static final int STATE_TOGGLE = 2;
-	private static final int STATE_TAG = 3;
-	private static final int STATE_REMOVE = 4;
-	private static final int STATE_PASSPHRASE = 5;
-
-	public static final int DEVICE_NAME = 0;
-	public static final int DEVICE_PASSPHRASE = 1;
-	public static final int DEVICE_ADDRESS = 2;
-
 	// NFC
 	private NfcAdapter mNfcAdapter = null;
 	private boolean mInWriteMode = false;
 
-	private IRemoteAuthClientService mServiceInterface;
-	private IRemoteAuthClientUI.Stub mUIInterface = new IRemoteAuthClientUI.Stub() {
+	private ITapLockService mServiceInterface;
+	private ITapLockUI.Stub mUIInterface = new ITapLockUI.Stub() {
 
 		@Override
 		public void setMessage(String message) throws RemoteException {
@@ -112,14 +111,14 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 			if ((mProgressDialog != null) && mProgressDialog.isShowing()) {
 				mProgressDialog.cancel();
 				if (mUnpairedDevices.length > 0) {
-					mDialog = new AlertDialog.Builder(RemoteAuthClientUI.this)
+					mDialog = new AlertDialog.Builder(TapLockUI.this)
 					.setItems(mUnpairedDevices, new DialogInterface.OnClickListener() {
 						@Override
 						public void onClick(DialogInterface dialog, int which) {
 							if (mServiceInterface != null) {
-								String[] parts = RemoteAuthClientUI.parseDeviceString(mUnpairedDevices[which]);
+								String[] parts = TapLockUI.parseDeviceString(mUnpairedDevices[which]);
 								try {
-									mServiceInterface.pairDevice(parts[RemoteAuthClientUI.DEVICE_ADDRESS]);
+									mServiceInterface.pairDevice(parts[DEVICE_ADDRESS]);
 								} catch (RemoteException e) {
 									Log.e(TAG, e.toString());
 									Toast.makeText(getApplicationContext(), "service unavailable", Toast.LENGTH_SHORT).show();
@@ -140,7 +139,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 			Intent intent = getIntent();
 			if (intent != null) {
 				if (NfcAdapter.ACTION_NDEF_DISCOVERED.equals(intent.getAction()) && intent.hasExtra(NfcAdapter.EXTRA_NDEF_MESSAGES))
-					RemoteAuthClientUI.this.finish();
+					TapLockUI.this.finish();
 			}
 		}
 
@@ -176,9 +175,9 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 		if (mInWriteMode) {
 			if (intent != null) {
 				String action = intent.getAction();
-				if (mInWriteMode && NfcAdapter.ACTION_TAG_DISCOVERED.equals(action) && intent.hasExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME)) {
+				if (mInWriteMode && NfcAdapter.ACTION_TAG_DISCOVERED.equals(action) && intent.hasExtra(TapLockService.EXTRA_DEVICE_NAME)) {
 					Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
-					String name = intent.getStringExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME);
+					String name = intent.getStringExtra(TapLockService.EXTRA_DEVICE_NAME);
 					Log.d(TAG, "write tag: " + name);
 					if ((tag != null) && (name != null)) {
 						// write the device and address
@@ -283,8 +282,8 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 								// broadcast the new widget to update
 								String[] deviceParts = parseDeviceString(mDevices[which]);
 								dialog.cancel();
-								RemoteAuthClientUI.this.finish();
-								sendBroadcast(new Intent(RemoteAuthClientUI.this, RemoteAuthClientWidget.class).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId).putExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME, deviceParts[DEVICE_NAME]).putExtra(RemoteAuthClientService.EXTRA_DEVICE_ADDRESS, deviceParts[DEVICE_ADDRESS]));
+								TapLockUI.this.finish();
+								sendBroadcast(new Intent(TapLockUI.this, TapLockWidget.class).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId).putExtra(TapLockService.EXTRA_DEVICE_NAME, deviceParts[DEVICE_NAME]).putExtra(TapLockService.EXTRA_DEVICE_ADDRESS, deviceParts[DEVICE_ADDRESS]));
 							}
 						})
 						.create();
@@ -294,8 +293,8 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 			}
 		}
 		// start the service before binding so that the service stays around for faster future connections
-		startService(new Intent(this, RemoteAuthClientService.class));
-		bindService(new Intent(this, RemoteAuthClientService.class), this, BIND_AUTO_CREATE);
+		startService(new Intent(this, TapLockService.class));
+		bindService(new Intent(this, TapLockService.class), this, BIND_AUTO_CREATE);
 	}
 
 	@Override
@@ -330,37 +329,32 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 	protected void onListItemClick(ListView list, final View view, int position, final long id) {
 		super.onListItemClick(list, view, position, id);
 		mDialog = new AlertDialog.Builder(this)
-		.setItems(R.array.states, new DialogInterface.OnClickListener() {
+		.setItems(R.array.actions_entries, new DialogInterface.OnClickListener() {
 			@Override
 			public void onClick(DialogInterface dialog, int which) {
-				int state = Integer.parseInt(getResources().getStringArray(R.array.state_values)[which]);
+				String action = getResources().getStringArray(R.array.actions_values)[which];
 				int deviceIdx = (int) id;
 				String device = mDevices[deviceIdx];
 				String[] parsedDevice = parseDeviceString(device);
 				dialog.cancel();
-				switch (state) {
-				case STATE_UNLOCK:
-				case STATE_LOCK:
-				case STATE_TOGGLE:
+				if (ACTION_UNLOCK.equals(action) || ACTION_LOCK.equals(action) || ACTION_TOGGLE.equals(action)) {
 					// attempt to connect to the device
 					if (mServiceInterface != null) {
 						try {
-							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(state));
+							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], action);
 						} catch (RemoteException e) {
 							Log.e(TAG, e.toString());
 						}
 					}
-					break;
-				case STATE_TAG:
+				} else if (ACTION_TAG.equals(action)) {
 					// write the device to a tag
 					mInWriteMode = true;
-					mNfcAdapter.enableForegroundDispatch(RemoteAuthClientUI.this,
-							PendingIntent.getActivity(RemoteAuthClientUI.this, 0, new Intent(RemoteAuthClientUI.this, RemoteAuthClientUI.this.getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra(RemoteAuthClientService.EXTRA_DEVICE_NAME, parsedDevice[DEVICE_NAME]), 0),
+					mNfcAdapter.enableForegroundDispatch(TapLockUI.this,
+							PendingIntent.getActivity(TapLockUI.this, 0, new Intent(TapLockUI.this, TapLockUI.this.getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra(TapLockService.EXTRA_DEVICE_NAME, parsedDevice[DEVICE_NAME]), 0),
 							new IntentFilter[] {new IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED)},
 							null);
-					Toast.makeText(RemoteAuthClientUI.this, "Touch tag", Toast.LENGTH_LONG).show();
-					break;
-				case STATE_REMOVE:
+					Toast.makeText(TapLockUI.this, "Touch tag", Toast.LENGTH_LONG).show();
+				} else if (ACTION_REMOVE.equals(action)) {
 					// remove device
 					int p = 0;
 					String[] devices = new String[mDevices.length - 1];
@@ -370,11 +364,9 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 						}
 					}
 					mDevices = devices;
-					setListAdapter(new ArrayAdapter<String>(RemoteAuthClientUI.this, android.R.layout.simple_list_item_1, mDevices));
-					break;
-				case STATE_PASSPHRASE:
+					setListAdapter(new ArrayAdapter<String>(TapLockUI.this, android.R.layout.simple_list_item_1, mDevices));
+				} else if (ACTION_PASSPHRASE.equals(action)) {
 					setPassphrase(parsedDevice, deviceIdx);
-					break;
 				}
 			}
 		})
@@ -438,7 +430,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 						if (mServiceInterface != null) {
 							try {
 								mServiceInterface.requestDiscovery();
-								mProgressDialog = new ProgressDialog(RemoteAuthClientUI.this);
+								mProgressDialog = new ProgressDialog(TapLockUI.this);
 								mProgressDialog.setMessage(getString(R.string.msg_scanning));
 								mProgressDialog.setCancelable(true);
 								mProgressDialog.show();
@@ -468,10 +460,10 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 	}
 	
 	protected void setPassphrase(final String[] parsedDevice, final int deviceIdx) {
-		final EditText fld_passphrase = new EditText(RemoteAuthClientUI.this);
+		final EditText fld_passphrase = new EditText(TapLockUI.this);
 		// parse the existing passphrase
 		fld_passphrase.setText(parsedDevice[DEVICE_PASSPHRASE]);
-		mDialog = new AlertDialog.Builder(RemoteAuthClientUI.this)
+		mDialog = new AlertDialog.Builder(TapLockUI.this)
 		.setTitle("set passphrase")
 		.setView(fld_passphrase)
 		.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
@@ -482,7 +474,7 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 				String device = buildDeviceString(new String[]{parsedDevice[DEVICE_NAME], fld_passphrase.getText().toString(), parsedDevice[DEVICE_ADDRESS]});
 				// save the device
 				mDevices[deviceIdx] = device;
-				setListAdapter(new ArrayAdapter<String>(RemoteAuthClientUI.this, android.R.layout.simple_list_item_1, mDevices));
+				setListAdapter(new ArrayAdapter<String>(TapLockUI.this, android.R.layout.simple_list_item_1, mDevices));
 			}
 
 		})
@@ -543,15 +535,15 @@ public class RemoteAuthClientUI extends ListActivity implements OnClickListener,
 				devices[i] = mDevices[i];
 			devices[mDevices.length] = newDevice;
 			mDevices = devices;
-			setListAdapter(new ArrayAdapter<String>(RemoteAuthClientUI.this, android.R.layout.simple_list_item_1, mDevices));
+			setListAdapter(new ArrayAdapter<String>(TapLockUI.this, android.R.layout.simple_list_item_1, mDevices));
 			// set the passphrase
-			setPassphrase(RemoteAuthClientUI.parseDeviceString(newDevice), mDevices.length - 1);
+			setPassphrase(TapLockUI.parseDeviceString(newDevice), mDevices.length - 1);
 		}
 	}
 
 	@Override
 	public void onServiceConnected(ComponentName name, IBinder binder) {
-		mServiceInterface = IRemoteAuthClientService.Stub.asInterface(binder);
+		mServiceInterface = ITapLockService.Stub.asInterface(binder);
 		if (mUIInterface != null) {
 			try {
 				mServiceInterface.setCallback(mUIInterface);

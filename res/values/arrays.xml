@@ -19,20 +19,20 @@
  *  Bryan Emmanuel piusvelte@gmail.com
 -->
 <resources>
-	<string-array name="states">
+	<string-array name="actions_entries">
 		<item>unlock</item>
 		<item>lock</item>
 		<item>toggle</item>
 		<item>tag</item>
 		<item>remove</item>
-		<item>set passphrase</item>
+		<item>passphrase</item>
 	</string-array>
-	<string-array name="state_values">
-		<item>0</item>
-		<item>1</item>
-		<item>2</item>
-		<item>3</item>
-		<item>4</item>
-		<item>5</item>
+	<string-array name="actions_values">
+		<item>com.piusvelte.taplock.ACTION_UNLOCK</item>
+		<item>com.piusvelte.taplock.ACTION_LOCK</item>
+		<item>com.piusvelte.taplock.ACTION_TOGGLE</item>
+		<item>com.piusvelte.taplock.ACTION_TAG</item>
+		<item>com.piusvelte.taplock.ACTION_REMOVE</item>
+		<item>com.piusvelte.taplock.ACTION_PASSPHRASE</item>
 	</string-array>
 </resources>

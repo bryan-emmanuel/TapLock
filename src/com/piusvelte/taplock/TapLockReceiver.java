@@ -1,5 +1,5 @@
 /*
- * RemoteAuthClient
+ * TapLock
  * Copyright (C) 2012 Bryan Emmanuel
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,12 +17,22 @@
  *  
  *  Bryan Emmanuel piusvelte@gmail.com
  */
-package com.piusvelte.remoteauthclient;
+package com.piusvelte.taplock;
 
-interface IRemoteAuthClientUI {
-	void setMessage(String message);
-	void setUnpairedDevice(String device);
-	void setDiscoveryFinished();
-	void setStateFinished();
-	void setPairingResult(String device);
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.util.Log;
+
+public class TapLockReceiver extends BroadcastReceiver {
+	
+	private static final String TAG = "TapLockReceiver";
+
+	@Override
+	public void onReceive(Context context, Intent intent) {
+		String action = intent.getAction();
+		Log.d(TAG, "action: " + action);
+		context.startService(intent.setClass(context, TapLockService.class));
+	}
+
 }

@@ -1,5 +1,5 @@
 /*
- * RemoteAuthClient
+ * TapLock
  * Copyright (C) 2012 Bryan Emmanuel
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -17,12 +17,13 @@
  *  
  *  Bryan Emmanuel piusvelte@gmail.com
  */
-package com.piusvelte.remoteauthclient;
+package com.piusvelte.taplock;
 
-import static com.piusvelte.remoteauthclient.RemoteAuthClientUI.DEVICE_ADDRESS;
-import static com.piusvelte.remoteauthclient.RemoteAuthClientUI.STATE_LOCK;
-import static com.piusvelte.remoteauthclient.RemoteAuthClientUI.STATE_TOGGLE;
-import static com.piusvelte.remoteauthclient.RemoteAuthClientUI.STATE_UNLOCK;
+import static com.piusvelte.taplock.TapLockService.ACTION_LOCK;
+import static com.piusvelte.taplock.TapLockService.ACTION_TOGGLE;
+import static com.piusvelte.taplock.TapLockService.ACTION_UNLOCK;
+import static com.piusvelte.taplock.TapLockService.DEVICE_ADDRESS;
+
 
 import java.io.UnsupportedEncodingException;
 import java.util.Iterator;
@@ -45,13 +46,13 @@ import android.os.RemoteException;
 import android.util.Log;
 import android.widget.TextView;
 
-public class RemoteAuthClientToggle extends Activity implements ServiceConnection {
-	private static final String TAG = "RemoteAuthClientUI";
+public class TapLockToggle extends Activity implements ServiceConnection {
+	private static final String TAG = "TapLockToggle";
 	private TextView mInfo;
 	private String[] mDevices;
 
-	private IRemoteAuthClientService mServiceInterface;
-	private IRemoteAuthClientUI.Stub mUIInterface = new IRemoteAuthClientUI.Stub() {
+	private ITapLockService mServiceInterface;
+	private ITapLockUI.Stub mUIInterface = new ITapLockUI.Stub() {
 
 		@Override
 		public void setMessage(String message) throws RemoteException {
@@ -68,7 +69,7 @@ public class RemoteAuthClientToggle extends Activity implements ServiceConnectio
 
 		@Override
 		public void setStateFinished() throws RemoteException {
-			RemoteAuthClientToggle.this.finish();
+			TapLockToggle.this.finish();
 		}
 
 		@Override
@@ -106,8 +107,8 @@ public class RemoteAuthClientToggle extends Activity implements ServiceConnectio
 			mDevices = new String[0];
 		}
 		// start the service before binding so that the service stays around for faster future connections
-		startService(new Intent(this, RemoteAuthClientService.class));
-		bindService(new Intent(this, RemoteAuthClientService.class), this, BIND_AUTO_CREATE);
+		startService(new Intent(this, TapLockService.class));
+		bindService(new Intent(this, TapLockService.class), this, BIND_AUTO_CREATE);
 	}
 
 	@Override
@@ -125,7 +126,7 @@ public class RemoteAuthClientToggle extends Activity implements ServiceConnectio
 
 	@Override
 	public void onServiceConnected(ComponentName name, IBinder binder) {
-		mServiceInterface = IRemoteAuthClientService.Stub.asInterface(binder);
+		mServiceInterface = ITapLockService.Stub.asInterface(binder);
 		if (mUIInterface != null) {
 			try {
 				mServiceInterface.setCallback(mUIInterface);
@@ -167,15 +168,15 @@ public class RemoteAuthClientToggle extends Activity implements ServiceConnectio
 							Log.d(TAG, "taggedDeviceName: " + taggedDeviceName);
 							String[] parsedDevice = null;
 							for (String device : mDevices) {
-								String deviceName = RemoteAuthClientUI.parseDeviceString(device)[0];
+								String deviceName = TapLockUI.parseDeviceString(device)[0];
 								if (deviceName.equals(taggedDeviceName)) {
-									parsedDevice = RemoteAuthClientUI.parseDeviceString(device);
+									parsedDevice = TapLockUI.parseDeviceString(device);
 									break;
 								}
 							}
 							if (parsedDevice != null) {
 								try {
-									mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], Integer.toString(STATE_TOGGLE));
+									mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], ACTION_TOGGLE);
 								} catch (RemoteException e) {
 									Log.e(TAG, e.toString());
 								}
@@ -188,33 +189,22 @@ public class RemoteAuthClientToggle extends Activity implements ServiceConnectio
 				}
 			} else if (intent.getData() != null) {
 				Uri remoteCmd = intent.getData();
-				String cmd = remoteCmd.getLastPathSegment();
+				action = remoteCmd.getLastPathSegment();
 				String taggedDeviceName = remoteCmd.getHost();
-				if ((cmd != null) && (taggedDeviceName != null)) {
+				if ((ACTION_UNLOCK.equals(action) || ACTION_LOCK.equals(action) || ACTION_TOGGLE.equals(action)) && (taggedDeviceName != null)) {
 					String[] parsedDevice = null;
 					for (String device : mDevices) {
-						String deviceName = RemoteAuthClientUI.parseDeviceString(device)[0];
+						String deviceName = TapLockUI.parseDeviceString(device)[0];
 						if (deviceName.equals(taggedDeviceName)) {
-							parsedDevice = RemoteAuthClientUI.parseDeviceString(device);
+							parsedDevice = TapLockUI.parseDeviceString(device);
 							break;
 						}
 					}
 					if (parsedDevice != null) {
-						String states[] = getResources().getStringArray(R.array.state_values);
-						if (states[STATE_UNLOCK].equals(cmd))
-							cmd = Integer.toString(STATE_UNLOCK);
-						else if (states[STATE_LOCK].equals(cmd))
-							cmd = Integer.toString(STATE_LOCK);
-						else if (states[STATE_TOGGLE].equals(cmd))
-							cmd = Integer.toString(STATE_TOGGLE);
-						else
-							cmd = null;
-						if (cmd != null) {
-							try {
-								mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], cmd);
-							} catch (RemoteException e) {
-								Log.e(TAG, e.toString());
-							}
+						try {
+							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], action);
+						} catch (RemoteException e) {
+							Log.e(TAG, e.toString());
 						}
 					}
 				}

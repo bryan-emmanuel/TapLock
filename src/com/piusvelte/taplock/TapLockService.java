@@ -64,6 +64,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 	public static final String PARAM_HMAC = "hmac";
 	public static final String PARAM_PASSPHRASE = "passphrase";
 	public static final String PARAM_CHALLENGE = "challenge";
+	public static final String PARAM_ERROR = "error";
 	public static final int DEVICE_NAME = 0;
 	public static final int DEVICE_PASSPHRASE = 1;
 	public static final int DEVICE_ADDRESS = 2;
@@ -348,6 +349,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 			mHandler.post(new MessageSetter("connect to: " + mAddress));
 			int connectionAttempt;
 			for (connectionAttempt = 0; connectionAttempt < MAX_CONNECTION_ATTEMPTS; connectionAttempt++) {
+				mHandler.post(new MessageSetter("connection attempt: " + (connectionAttempt + 1)));
 				try {
 					mSocket = device.createRfcommSocketToServiceRecord(sTapLockUUID);
 					mSocket.connect();
@@ -377,7 +379,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 						if (readBytes != -1) {
 							// construct a string from the valid bytes in the buffer
 							String responseStr = new String(buffer, 0, readBytes);
-							JSONObject responseJObj;
+							JSONObject responseJObj = null;
 							String challenge = null;
 							try {
 								responseJObj = new JSONObject(responseStr);
@@ -423,6 +425,25 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 									mHandler.post(new MessageSetter("no passphrase found for device"));
 							} else
 								mHandler.post(new MessageSetter("failed to receive a challenge"));
+							// check for error messages
+							try {
+								readBytes = inStream.read(buffer);
+							} catch (IOException e) {
+								readBytes = -1;
+							}
+							if (readBytes != -1) {
+								responseStr = new String(buffer, 0, readBytes);
+								String error = null;
+								try {
+									responseJObj = new JSONObject(responseStr);
+									if (responseJObj.has(PARAM_ERROR))
+										error = responseJObj.getString(PARAM_ERROR);
+								} catch (JSONException e) {
+									responseJObj = null;
+								}
+								if (error != null)
+									mHandler.post(new MessageSetter("error: " + error));
+							}
 						} else
 							mHandler.post(new MessageSetter("failed to read input stream"));
 					}

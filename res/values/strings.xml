@@ -15,5 +15,6 @@
     <string name="widget_device_name">unknown</string>
     <string name="widget_device_state">toggle</string>
     <string name="msg_enable_bt">Please enable Bluetooth.</string>
+    <string name="msg_device_not_conf">%s, not configured on this device.</string>
 
 </resources>

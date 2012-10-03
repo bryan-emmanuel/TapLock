@@ -23,9 +23,9 @@
 		<item>unlock</item>
 		<item>lock</item>
 		<item>toggle</item>
-		<item>tag</item>
+		<item>write NFC tag</item>
 		<item>remove</item>
-		<item>passphrase</item>
+		<item>change passphrase</item>
 	</string-array>
 	<string-array name="actions_values">
 		<item>com.piusvelte.taplock.ACTION_UNLOCK</item>

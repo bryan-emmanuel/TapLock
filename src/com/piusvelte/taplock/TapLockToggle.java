@@ -43,6 +43,7 @@ import android.os.Parcelable;
 import android.os.RemoteException;
 import android.util.Log;
 import android.widget.TextView;
+import android.widget.Toast;
 
 public class TapLockToggle extends Activity implements ServiceConnection {
 	private static final String TAG = "TapLockToggle";
@@ -67,7 +68,7 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 
 		@Override
 		public void setStateFinished() throws RemoteException {
-			TapLockToggle.this.finish();
+			finish();
 		}
 
 		@Override
@@ -164,55 +165,53 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 							String textEncoding = ((payload[0] & 0200) == 0) ? "UTF-8" : "UTF-16";
 							int languageCodeLength = payload[0] & 0077;
 							String taggedDeviceName = new String(payload, languageCodeLength + 1, payload.length - languageCodeLength - 1, textEncoding);
-							Log.d(TAG, "taggedDeviceName: " + taggedDeviceName);
-							String[] parsedDevice = null;
-							for (String device : mDevices) {
-								String deviceName = TapLockSettings.parseDeviceString(device)[0];
-								if (deviceName.equals(taggedDeviceName)) {
-									parsedDevice = TapLockSettings.parseDeviceString(device);
-									break;
-								}
-							}
-							if (parsedDevice != null) {
-								try {
-									mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], ACTION_TOGGLE, null);
-								} catch (RemoteException e) {
-									Log.e(TAG, e.toString());
-								}
-							}
+							toggleDevice(taggedDeviceName);
 						} catch (UnsupportedEncodingException e) {
 							// should never happen unless we get a malformed tag.
 							Log.e(TAG, e.toString());
+							finish();
 						}
-					}
-				}
+					} else
+						finish();
+				} else
+					finish();
 			} else if (intent.getData() != null) {
 				Uri remoteCmd = intent.getData();
 				action = remoteCmd.getLastPathSegment();
 				String taggedDeviceName = remoteCmd.getHost();
-				if ((ACTION_UNLOCK.equals(action) || ACTION_LOCK.equals(action) || ACTION_TOGGLE.equals(action)) && (taggedDeviceName != null)) {
-					String[] parsedDevice = null;
-					for (String device : mDevices) {
-						String deviceName = TapLockSettings.parseDeviceString(device)[0];
-						if (deviceName.equals(taggedDeviceName)) {
-							parsedDevice = TapLockSettings.parseDeviceString(device);
-							break;
-						}
-					}
-					if (parsedDevice != null) {
-						try {
-							mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], action, null);
-						} catch (RemoteException e) {
-							Log.e(TAG, e.toString());
-						}
-					}
-				}
-			}
-		}
+				if ((ACTION_UNLOCK.equals(action) || ACTION_LOCK.equals(action) || ACTION_TOGGLE.equals(action)) && (taggedDeviceName != null))
+					toggleDevice(taggedDeviceName);
+				else
+					finish();
+			} else
+				finish();
+		} else
+			finish();
 	}
 
 	@Override
 	public void onServiceDisconnected(ComponentName arg0) {
 		mServiceInterface = null;
+	}
+
+	private void toggleDevice(String taggedDeviceName) {
+		String[] parsedDevice = null;
+		for (String device : mDevices) {
+			String deviceName = TapLockSettings.parseDeviceString(device)[0];
+			if (deviceName.equals(taggedDeviceName)) {
+				parsedDevice = TapLockSettings.parseDeviceString(device);
+				break;
+			}
+		}
+		if (parsedDevice != null) {
+			try {
+				mServiceInterface.write(parsedDevice[DEVICE_ADDRESS], ACTION_TOGGLE, null);
+			} catch (RemoteException e) {
+				Log.e(TAG, e.toString());
+			}
+		} else {
+			Toast.makeText(getApplicationContext(), String.format(getString(R.string.msg_device_not_conf), taggedDeviceName), Toast.LENGTH_LONG).show();
+			finish();
+		}
 	}
 }

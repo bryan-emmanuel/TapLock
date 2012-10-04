@@ -18,11 +18,10 @@ public final class R {
         public static final int ic_launcher=0x7f020000;
     }
     public static final class id {
-        public static final int btn_add=0x7f070000;
-        public static final int device_name=0x7f070003;
-        public static final int device_state=0x7f070004;
-        public static final int info=0x7f070001;
-        public static final int widget=0x7f070002;
+        public static final int btn_add=0x7f080000;
+        public static final int device_name=0x7f080002;
+        public static final int device_state=0x7f080003;
+        public static final int widget=0x7f080001;
     }
     public static final class layout {
         public static final int main=0x7f030000;
@@ -45,6 +44,9 @@ public final class R {
         public static final int ttl_enablebt=0x7f060009;
         public static final int widget_device_name=0x7f06000b;
         public static final int widget_device_state=0x7f06000c;
+    }
+    public static final class style {
+        public static final int TapLockToggle=0x7f070000;
     }
     public static final class xml {
         public static final int widget_1x1=0x7f040000;

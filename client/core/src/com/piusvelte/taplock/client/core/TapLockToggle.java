@@ -33,8 +33,10 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
@@ -52,15 +54,16 @@ import android.widget.Toast;
 
 public class TapLockToggle extends Activity implements ServiceConnection {
 	private static final String TAG = "TapLockToggle";
-	private TextView mInfo;
 	private ArrayList<JSONObject> mDevices = new ArrayList<JSONObject>();
+	private AlertDialog mDialog;
+	private TextView mInfoView;
 
 	private ITapLockService mServiceInterface;
 	private ITapLockUI.Stub mUIInterface = new ITapLockUI.Stub() {
 
 		@Override
 		public void setMessage(String message) throws RemoteException {
-			mInfo.append(message + "\n");
+			mInfoView.append(message + "\n");
 		}
 
 		@Override
@@ -72,8 +75,9 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 		}
 
 		@Override
-		public void setStateFinished() throws RemoteException {
-			finish();
+		public void setStateFinished(boolean pass) throws RemoteException {
+			if (pass)
+				finish();
 		}
 
 		@Override
@@ -90,7 +94,6 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.toggle);
-		mInfo = (TextView) findViewById(R.id.info);
 	}
 
 	@Override 
@@ -102,6 +105,17 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 	@Override
 	protected void onResume() {
 		super.onResume();
+		mInfoView = new TextView(this);
+		mDialog = new AlertDialog.Builder(this)
+		.setView(mInfoView)
+		.setOnCancelListener(new DialogInterface.OnCancelListener() {
+			@Override
+			public void onCancel(DialogInterface dialog) {
+				finish();
+			}
+		})
+		.create();
+		mDialog.show();
 		final SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
 		Set<String> devices = sp.getStringSet(getString(R.string.key_devices), null);
 		if (devices != null) {
@@ -121,6 +135,12 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 	@Override
 	protected void onPause() {
 		super.onPause();
+		mInfoView = null;
+		if (mDialog != null) {
+			if (mDialog.isShowing())
+				mDialog.cancel();
+			mDialog = null;
+		}
 		if (mServiceInterface != null) {
 			try {
 				mServiceInterface.stop();

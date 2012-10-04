@@ -150,7 +150,7 @@ public class TapLockSettings extends ListActivity implements OnClickListener, Se
 		}
 
 		@Override
-		public void setStateFinished() throws RemoteException {
+		public void setStateFinished(boolean pass) throws RemoteException {
 			Intent intent = getIntent();
 			if (intent != null) {
 				if (NfcAdapter.ACTION_NDEF_DISCOVERED.equals(intent.getAction()) && intent.hasExtra(NfcAdapter.EXTRA_NDEF_MESSAGES))
@@ -165,23 +165,8 @@ public class TapLockSettings extends ListActivity implements OnClickListener, Se
 
 		@Override
 		public void setPassphrase(String address, String passphrase) throws RemoteException {
-			if (address != null) {
-				for (int i = 0, l = mDevices.size(); i < l; i++) {
-					JSONObject deviceObj = mDevices.remove(i);
-					String deviceAddr;
-					try {
-						deviceAddr = deviceObj.getString(KEY_ADDRESS);
-						if (deviceAddr.equals(address)) {
-							deviceObj.put(KEY_PASSPHRASE, passphrase);
-							mDevices.add(i, deviceObj);
-							break;
-						}
-					} catch (JSONException e) {
-						Log.e(TAG, e.toString());
-					}
-				}
-			} else
-				Toast.makeText(getApplicationContext(), "failed to set passphrase", Toast.LENGTH_SHORT).show();
+			if (address == null)
+				Toast.makeText(getApplicationContext(), "failed to set passphrase on TapLockServer", Toast.LENGTH_SHORT).show();
 		}
 
 	};

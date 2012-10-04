@@ -358,6 +358,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 		}
 
 		public void run() {
+			boolean pass = false;
 			mBtAdapter.cancelDiscovery();
 			BluetoothDevice device = mBtAdapter.getRemoteDevice(mAddress);
 			mHandler.post(new MessageSetter("connect to: " + mAddress));
@@ -380,7 +381,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 							outStream = mSocket.getOutputStream();
 						} catch (IOException e) {
 							mHandler.post(new MessageSetter("failed to get streams: " + e.getMessage()));
-							shutdown();
+							shutdown(pass);
 							return;
 						}
 						byte[] buffer = new byte[1024];
@@ -421,6 +422,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 														outStream.write(requestBytes);
 														if (ACTION_PASSPHRASE.equals(mAction))
 															mHandler.post(new PassphraseSetter(mAddress, mNewPassphrase));
+														pass = true;
 													} catch (JSONException e) {
 														mHandler.post(new MessageSetter("failed to build request: " + e.getMessage()));
 													}
@@ -453,8 +455,10 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 								String error = null;
 								try {
 									responseJObj = new JSONObject(responseStr);
-									if (responseJObj.has(PARAM_ERROR))
+									if (responseJObj.has(PARAM_ERROR)) {
+										pass = false;
 										error = responseJObj.getString(PARAM_ERROR);
+									}
 								} catch (JSONException e) {
 									responseJObj = null;
 								}
@@ -469,10 +473,15 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 			}
 			if (connectionAttempt == MAX_CONNECTION_ATTEMPTS)
 				mHandler.post(new MessageSetter("failed to get socket, or connect"));
-			shutdown();
+			shutdown(pass);
+		}
+		
+		// convenience method for shutting down thread
+		public void shutdown() {
+			shutdown(true);
 		}
 
-		public void shutdown() {
+		public void shutdown(boolean pass) {
 			mHandler.post(new MessageSetter("connect thread shutdown"));
 			if (inStream != null) {
 				try {
@@ -499,7 +508,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 				mSocket = null;
 			}
 			mConnectThread = null;
-			mHandler.post(new StateFinishedSetter());
+			mHandler.post(new StateFinishedSetter(pass));
 		}
 	}
 
@@ -587,13 +596,19 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 	}
 
 	class StateFinishedSetter implements Runnable {
+		
+		boolean mPass = false;
+		
+		public StateFinishedSetter(boolean pass) {
+			mPass = pass;
+		}
 
 		@Override
 		public void run() {
 			Log.d(TAG, "state finished");
 			if (mUIInterface != null) {
 				try {
-					mUIInterface.setStateFinished();
+					mUIInterface.setStateFinished(mPass);
 				} catch (RemoteException e) {
 					Log.e(TAG, e.getMessage());
 				}

@@ -1,6 +1,7 @@
-/*
+<?xml version="1.0" encoding="utf-8"?>
+<!--
  * TapLock
- * Copyright (C) 2012 Bryan Emmanuel
+ * Copyright (C) 2009 Bryan Emmanuel
  * 
  * This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -11,19 +12,19 @@
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
- *
+
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *  
  *  Bryan Emmanuel piusvelte@gmail.com
- */
-package com.piusvelte.taplock.client.core;
-
-interface ITapLockUI {
-	void setMessage(String message);
-	void setUnpairedDevice(String device);
-	void setDiscoveryFinished();
-	void setStateFinished(boolean pass);
-	void setPairingResult(String name, String address);
-	void setPassphrase(String address, String passphrase);
-}
+-->
+<resources>
+    <style name="TapLockToggle">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorBackgroundCacheHint">@null</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+    </style>
+</resources>

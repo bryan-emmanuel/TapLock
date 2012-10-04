@@ -23,7 +23,7 @@ interface ITapLockUI {
 	void setMessage(String message);
 	void setUnpairedDevice(String device);
 	void setDiscoveryFinished();
-	void setStateFinished();
+	void setStateFinished(boolean pass);
 	void setPairingResult(String name, String address);
 	void setPassphrase(String address, String passphrase);
 }

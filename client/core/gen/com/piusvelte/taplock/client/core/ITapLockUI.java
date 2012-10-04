@@ -70,7 +70,9 @@ return true;
 case TRANSACTION_setStateFinished:
 {
 data.enforceInterface(DESCRIPTOR);
-this.setStateFinished();
+boolean _arg0;
+_arg0 = (0!=data.readInt());
+this.setStateFinished(_arg0);
 reply.writeNoException();
 return true;
 }
@@ -158,12 +160,13 @@ _reply.recycle();
 _data.recycle();
 }
 }
-public void setStateFinished() throws android.os.RemoteException
+public void setStateFinished(boolean pass) throws android.os.RemoteException
 {
 android.os.Parcel _data = android.os.Parcel.obtain();
 android.os.Parcel _reply = android.os.Parcel.obtain();
 try {
 _data.writeInterfaceToken(DESCRIPTOR);
+_data.writeInt(((pass)?(1):(0)));
 mRemote.transact(Stub.TRANSACTION_setStateFinished, _data, _reply, 0);
 _reply.readException();
 }
@@ -215,7 +218,7 @@ static final int TRANSACTION_setPassphrase = (android.os.IBinder.FIRST_CALL_TRAN
 public void setMessage(java.lang.String message) throws android.os.RemoteException;
 public void setUnpairedDevice(java.lang.String device) throws android.os.RemoteException;
 public void setDiscoveryFinished() throws android.os.RemoteException;
-public void setStateFinished() throws android.os.RemoteException;
+public void setStateFinished(boolean pass) throws android.os.RemoteException;
 public void setPairingResult(java.lang.String name, java.lang.String address) throws android.os.RemoteException;
 public void setPassphrase(java.lang.String address, java.lang.String passphrase) throws android.os.RemoteException;
 }

@@ -33,7 +33,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import android.app.ProgressDialog;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -49,21 +49,23 @@ import android.os.IBinder;
 import android.os.Parcelable;
 import android.os.RemoteException;
 import android.util.Log;
-import android.widget.TextView;
 import android.widget.Toast;
 
 public class TapLockToggle extends Activity implements ServiceConnection {
 	private static final String TAG = "TapLockToggle";
 	private ArrayList<JSONObject> mDevices = new ArrayList<JSONObject>();
-	private AlertDialog mDialog;
-	private TextView mInfoView;
+	private ProgressDialog mProgressDialog;
+	private String mProgressMessage = "";
 
 	private ITapLockService mServiceInterface;
 	private ITapLockUI.Stub mUIInterface = new ITapLockUI.Stub() {
 
 		@Override
 		public void setMessage(String message) throws RemoteException {
-			mInfoView.append(message + "\n");
+			if ((mProgressDialog != null) && mProgressDialog.isShowing()) {
+				mProgressMessage += message + "\n";
+				mProgressDialog.setMessage(mProgressMessage);
+			}
 		}
 
 		@Override
@@ -105,17 +107,16 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 	@Override
 	protected void onResume() {
 		super.onResume();
-		mInfoView = new TextView(this);
-		mDialog = new AlertDialog.Builder(this)
-		.setView(mInfoView)
-		.setOnCancelListener(new DialogInterface.OnCancelListener() {
+		mProgressDialog = new ProgressDialog(this);
+		mProgressDialog.setMessage(mProgressMessage);
+		mProgressDialog.setCancelable(true);
+		mProgressDialog.setOnCancelListener(new DialogInterface.OnCancelListener() {
 			@Override
 			public void onCancel(DialogInterface dialog) {
 				finish();
 			}
-		})
-		.create();
-		mDialog.show();
+		});
+		mProgressDialog.show();
 		final SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
 		Set<String> devices = sp.getStringSet(getString(R.string.key_devices), null);
 		if (devices != null) {
@@ -135,12 +136,8 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 	@Override
 	protected void onPause() {
 		super.onPause();
-		mInfoView = null;
-		if (mDialog != null) {
-			if (mDialog.isShowing())
-				mDialog.cancel();
-			mDialog = null;
-		}
+		if ((mProgressDialog != null) && mProgressDialog.isShowing())
+			mProgressDialog.cancel();
 		if (mServiceInterface != null) {
 			try {
 				mServiceInterface.stop();

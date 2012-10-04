@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+ * RemoteAuthClient
+ * Copyright (C) 2012 Bryan Emmanuel
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *  
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *  
+ *  Bryan Emmanuel piusvelte@gmail.com
+ -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.piusvelte.taplock.client.core"
+    android:versionCode="1"
+    android:versionName="1.0" >
+
+    <uses-sdk android:minSdkVersion="14" android:targetSdkVersion="16" />
+
+    <uses-permission android:name="android.permission.NFC" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+
+    <uses-feature android:name="android.hardware.nfc" />
+
+    <application
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name" >
+        <activity
+            android:name=".TapLockSettings"
+            android:label="@string/app_name"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.nfc.action.TAG_DISCOVERED" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="ancroid.intent.category.BROWSABLE" />
+                <data android:scheme="rac" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".client.core.TapLockToggle"
+            android:label="@string/app_name"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="ancroid.intent.category.BROWSABLE" />
+                <data android:scheme="rac" />
+            </intent-filter>
+        </activity>
+        <service android:name=".client.core.TapLockService" />
+		<receiver android:name=".TapLockWidget" android:label="@string/app_name">
+			<intent-filter>
+				<action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+			</intent-filter>
+			<intent-filter>
+				<action android:name="com.piusvelte.taplock.ACTION_TOGGLE" />
+			</intent-filter>
+			<meta-data android:name="android.appwidget.provider"
+				android:resource="@xml/widget_1x1" />
+		</receiver>
+		<receiver android:name=".client.core.TapLockReceiver">
+		    <intent-filter>
+		        <action android:name="android.bluetooth.adapter.action.STATE_CHANGED" />
+		    </intent-filter>
+		    <intent-filter>
+		        <action android:name="android.bluetooth.device.action.FOUND" />
+		    </intent-filter>
+		    <intent-filter>
+		        <action android:name="android.bluetooth.adapter.action.DISCOVERY_FINISHED" />
+		    </intent-filter>
+		</receiver>
+    </application>
+
+</manifest>

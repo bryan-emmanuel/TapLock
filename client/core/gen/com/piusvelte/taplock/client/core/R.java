@@ -97,12 +97,14 @@ containing a value of this type.
         public static final int ic_home=0x7f020004;
         public static final int ic_launcher=0x7f020005;
         public static final int ic_menu_add=0x7f020006;
+        public static final int ic_menu_more=0x7f020007;
     }
     public static final class id {
         public static final int actionbar_compat=0x7f080000;
         public static final int actionbar_compat_item_refresh=0x7f080003;
         public static final int actionbar_compat_item_refresh_progress=0x7f080002;
         public static final int actionbar_compat_title=0x7f080001;
+        public static final int button_about=0x7f080009;
         public static final int button_add_device=0x7f080008;
         public static final int device_name=0x7f080006;
         public static final int device_state=0x7f080007;
@@ -119,13 +121,17 @@ containing a value of this type.
         public static final int menu_settings=0x7f0b0000;
     }
     public static final class string {
+        public static final int about=0x7f090010;
         public static final int app_name=0x7f090000;
         public static final int btn_bt_scan=0x7f090003;
+        public static final int button_about=0x7f09000f;
         public static final int button_add_device=0x7f090001;
+        public static final int button_license=0x7f090011;
         public static final int chk_sec=0x7f090002;
         public static final int key_devices=0x7f090006;
         public static final int key_preferences=0x7f090005;
         public static final int key_widgets=0x7f090007;
+        public static final int license=0x7f090012;
         public static final int mn_remove=0x7f09000a;
         public static final int msg_device_not_conf=0x7f09000e;
         public static final int msg_enable_bt=0x7f09000d;

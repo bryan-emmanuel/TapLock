@@ -487,6 +487,25 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 				.create();
 				mDialog.show();
 			}
+		} else if (itemId == R.id.button_about) {
+			mDialog = new AlertDialog.Builder(TapLockSettings.this)
+			.setTitle(R.string.button_about)
+			.setMessage(R.string.about)
+			.setPositiveButton(R.string.button_license, new DialogInterface.OnClickListener() {
+
+				@Override
+				public void onClick(DialogInterface dialog, int which) {
+					dialog.cancel();
+					mDialog = new AlertDialog.Builder(TapLockSettings.this)
+					.setTitle(R.string.button_license)
+					.setMessage(R.string.license)
+					.create();
+					mDialog.show();
+				}
+				
+			})
+			.create();
+			mDialog.show();
 		}
 		return super.onOptionsItemSelected(item);
 	}

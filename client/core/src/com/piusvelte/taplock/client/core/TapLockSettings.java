@@ -66,20 +66,18 @@ import android.os.RemoteException;
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.Menu;
+import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ContextMenu.ContextMenuInfo;
-import android.view.View.OnClickListener;
 import android.widget.ArrayAdapter;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.AdapterView.AdapterContextMenuInfo;
 import android.widget.Toast;
 
-public class TapLockSettings extends ListActivity implements OnClickListener, ServiceConnection {
+public class TapLockSettings extends ListActivity implements ServiceConnection {
 	private static final String TAG = "TapLockSettings";
-	private Button mBtn_add;
 	private ProgressDialog mProgressDialog;
 	private AlertDialog mDialog;
 	private ArrayList<JSONObject> mDevices = new ArrayList<JSONObject>();
@@ -176,8 +174,6 @@ public class TapLockSettings extends ListActivity implements OnClickListener, Se
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.main);
 		registerForContextMenu(getListView());
-		mBtn_add = ((Button) findViewById(R.id.btn_add));
-		mBtn_add.setOnClickListener(this);
 		//NFC
 		mNfcAdapter = NfcAdapter.getDefaultAdapter(getApplicationContext());
 
@@ -416,8 +412,16 @@ public class TapLockSettings extends ListActivity implements OnClickListener, Se
 	}
 
 	@Override
-	public void onClick(View v) {
-		if (v.equals(mBtn_add)) {
+	public boolean onCreateOptionsMenu(Menu menu) {
+		MenuInflater menuInflater = getMenuInflater();
+		menuInflater.inflate(R.menu.menu_settings, menu);
+		return super.onCreateOptionsMenu(menu);
+	}
+	
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+		int itemId = item.getItemId();
+		if (itemId == R.id.button_add_device) {
 			// Get a set of currently paired devices
 			final BluetoothAdapter btAdapter = BluetoothAdapter.getDefaultAdapter();
 			if (btAdapter.isEnabled()) {
@@ -484,6 +488,7 @@ public class TapLockSettings extends ListActivity implements OnClickListener, Se
 				mDialog.show();
 			}
 		}
+		return super.onOptionsItemSelected(item);
 	}
 	
 	private String[] getDeviceNames() {

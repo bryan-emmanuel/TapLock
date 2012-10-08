@@ -29,15 +29,20 @@
     <string name="key_devices">devices</string>
     <string name="key_widgets">widgets</string>
     <string name="no_devices">No saved devices</string>
-    <string name="ttl_enablebt">Enable Bluetooth?</string>
     <string name="mn_remove">Remove device</string>
     <string name="widget_device_name">unknown</string>
     <string name="widget_device_state">toggle</string>
-    <string name="msg_enable_bt">Please enable Bluetooth.</string>
+    <string name="ttl_enablebt">Bluetooth is required.</string>
+    <string name="msg_enablebt">Enable bluetooth?</string>
     <string name="msg_device_not_conf">%s, not configured on this device.</string>
     <string name="button_about">About</string>
-    <string name="about">Tap Lock uses NFC and Bluetooth to lock and unlock PCs.\u000A\u000ASetup:\u000A\u000A1. Install Java 1.5+ on the PC\u000A2. Download and Extract the Tap Lock Server on the PC from https://github.com/piusvelte\u000A3. Configure the Tap Lock Server according to the README from the extracted download\u000A4. Make sure that Bluetooth is enabled on the PC and that the Tap Lock Server is running\u000A5. In the Tap Lock app, on the Android device, press Add device to setup the PC\u000A6. After pairing with the PC, select that newly added device for further options</string>
+    <string name="about">Tap Lock uses NFC and Bluetooth to lock and unlock PCs.\u000A\u000ACurrently, Gnome Desktop on Linux is supported.\u000A\u000ASetup:\u000A\u000A1. Install Java 1.5+ on the PC\u000A2. Download and Extract the Tap Lock Server on the PC from https://github.com/piusvelte\u000A3. Configure the Tap Lock Server according to the README from the extracted download\u000A4. Make sure that Bluetooth is enabled on the PC and that the Tap Lock Server is running\u000A5. In the Tap Lock app, on the Android device, press Add device to setup the PC\u000A6. After pairing with the PC, select that newly added device for further options</string>
     <string name="button_license">License</string>
     <string name="license">Tap Lock\u000A\u000ACopyright &#169; 2012 Bryan Emmanuel\u000A\u000AThis program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.\u000A\u000AThis program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.\u000A\u000AYou should have received a copy of the GNU General Public License along with this program.  If not, see \u003C\u000Ahttp://www.gnu.org/licenses/\u003E.\u000A\u000ABryan Emmanuel piusvelte@gmail.com</string>
+    <string name="title_toggle">Toggling device</string>
+    <string name="ok">OK</string>
+    <string name="info_noinfo">No info provided.</string>
+    <string name="info_taplocksettings">Devices are listed here and can be added using the menu options.</string>
+    <string name="info_newdevice">Long press on devices for additional options, including changing the passphrase.</string>
 
 </resources>

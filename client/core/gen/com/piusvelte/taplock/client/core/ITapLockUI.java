@@ -98,6 +98,13 @@ this.setPassphrase(_arg0, _arg1);
 reply.writeNoException();
 return true;
 }
+case TRANSACTION_setBluetoothEnabled:
+{
+data.enforceInterface(DESCRIPTOR);
+this.setBluetoothEnabled();
+reply.writeNoException();
+return true;
+}
 }
 return super.onTransact(code, data, reply, flags);
 }
@@ -207,6 +214,20 @@ _reply.recycle();
 _data.recycle();
 }
 }
+public void setBluetoothEnabled() throws android.os.RemoteException
+{
+android.os.Parcel _data = android.os.Parcel.obtain();
+android.os.Parcel _reply = android.os.Parcel.obtain();
+try {
+_data.writeInterfaceToken(DESCRIPTOR);
+mRemote.transact(Stub.TRANSACTION_setBluetoothEnabled, _data, _reply, 0);
+_reply.readException();
+}
+finally {
+_reply.recycle();
+_data.recycle();
+}
+}
 }
 static final int TRANSACTION_setMessage = (android.os.IBinder.FIRST_CALL_TRANSACTION + 0);
 static final int TRANSACTION_setUnpairedDevice = (android.os.IBinder.FIRST_CALL_TRANSACTION + 1);
@@ -214,6 +235,7 @@ static final int TRANSACTION_setDiscoveryFinished = (android.os.IBinder.FIRST_CA
 static final int TRANSACTION_setStateFinished = (android.os.IBinder.FIRST_CALL_TRANSACTION + 3);
 static final int TRANSACTION_setPairingResult = (android.os.IBinder.FIRST_CALL_TRANSACTION + 4);
 static final int TRANSACTION_setPassphrase = (android.os.IBinder.FIRST_CALL_TRANSACTION + 5);
+static final int TRANSACTION_setBluetoothEnabled = (android.os.IBinder.FIRST_CALL_TRANSACTION + 6);
 }
 public void setMessage(java.lang.String message) throws android.os.RemoteException;
 public void setUnpairedDevice(java.lang.String device) throws android.os.RemoteException;
@@ -221,4 +243,5 @@ public void setDiscoveryFinished() throws android.os.RemoteException;
 public void setStateFinished(boolean pass) throws android.os.RemoteException;
 public void setPairingResult(java.lang.String name, java.lang.String address) throws android.os.RemoteException;
 public void setPassphrase(java.lang.String address, java.lang.String passphrase) throws android.os.RemoteException;
+public void setBluetoothEnabled() throws android.os.RemoteException;
 }

@@ -87,6 +87,13 @@ this.stop();
 reply.writeNoException();
 return true;
 }
+case TRANSACTION_enableBluetooth:
+{
+data.enforceInterface(DESCRIPTOR);
+this.enableBluetooth();
+reply.writeNoException();
+return true;
+}
 }
 return super.onTransact(code, data, reply, flags);
 }
@@ -180,16 +187,32 @@ _reply.recycle();
 _data.recycle();
 }
 }
+public void enableBluetooth() throws android.os.RemoteException
+{
+android.os.Parcel _data = android.os.Parcel.obtain();
+android.os.Parcel _reply = android.os.Parcel.obtain();
+try {
+_data.writeInterfaceToken(DESCRIPTOR);
+mRemote.transact(Stub.TRANSACTION_enableBluetooth, _data, _reply, 0);
+_reply.readException();
+}
+finally {
+_reply.recycle();
+_data.recycle();
+}
+}
 }
 static final int TRANSACTION_setCallback = (android.os.IBinder.FIRST_CALL_TRANSACTION + 0);
 static final int TRANSACTION_write = (android.os.IBinder.FIRST_CALL_TRANSACTION + 1);
 static final int TRANSACTION_requestDiscovery = (android.os.IBinder.FIRST_CALL_TRANSACTION + 2);
 static final int TRANSACTION_pairDevice = (android.os.IBinder.FIRST_CALL_TRANSACTION + 3);
 static final int TRANSACTION_stop = (android.os.IBinder.FIRST_CALL_TRANSACTION + 4);
+static final int TRANSACTION_enableBluetooth = (android.os.IBinder.FIRST_CALL_TRANSACTION + 5);
 }
 public void setCallback(android.os.IBinder uiBinder) throws android.os.RemoteException;
 public void write(java.lang.String address, java.lang.String action, java.lang.String passphrase) throws android.os.RemoteException;
 public void requestDiscovery() throws android.os.RemoteException;
 public void pairDevice(java.lang.String address) throws android.os.RemoteException;
 public void stop() throws android.os.RemoteException;
+public void enableBluetooth() throws android.os.RemoteException;
 }

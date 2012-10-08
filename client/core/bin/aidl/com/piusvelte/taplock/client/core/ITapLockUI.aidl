@@ -26,4 +26,5 @@ interface ITapLockUI {
 	void setStateFinished(boolean pass);
 	void setPairingResult(String name, String address);
 	void setPassphrase(String address, String passphrase);
+	void setBluetoothEnabled();
 }

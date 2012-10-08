@@ -1,4 +1,5 @@
-/*
+<?xml version="1.0" encoding="utf-8"?>
+<!--
  * TapLock
  * Copyright (C) 2012 Bryan Emmanuel
  * 
@@ -11,19 +12,16 @@
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
- *
+
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *  
  *  Bryan Emmanuel piusvelte@gmail.com
- */
-package com.piusvelte.taplock.client.core;
-
-interface ITapLockService {
-	void setCallback(in IBinder uiBinder);
-	void write(String address, String action, String passphrase);
-	void requestDiscovery();
-	void pairDevice(String address);
-	void stop();
-	void enableBluetooth();
-}
+-->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:orientation="vertical" >
+    <TextView android:id="@+id/info" android:text="@string/info_noinfo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_centerInParent="true" android:textColor="@color/white"/>
+    <Button android:id="@+id/close" android:text="@string/ok" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_centerInParent="true" android:layout_below="@id/info"/>
+</RelativeLayout>

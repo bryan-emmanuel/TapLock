@@ -29,6 +29,7 @@ import static com.piusvelte.taplock.client.core.TapLockService.KEY_ADDRESS;
 import static com.piusvelte.taplock.client.core.TapLockService.KEY_NAME;
 import static com.piusvelte.taplock.client.core.TapLockService.KEY_PASSPHRASE;
 import static com.piusvelte.taplock.client.core.TapLockService.DEFAULT_PASSPHRASE;
+import static com.piusvelte.taplock.client.core.TapLockService.EXTRA_INFO;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -82,6 +83,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 	private AlertDialog mDialog;
 	private ArrayList<JSONObject> mDevices = new ArrayList<JSONObject>();
 	private ArrayList<JSONObject> mUnpairedDevices = new ArrayList<JSONObject>();
+	private boolean mShowTapLockSettingsInfo = true;
 	private static final int REMOVE_ID = Menu.FIRST;
 
 	// NFC
@@ -167,6 +169,11 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 				Toast.makeText(getApplicationContext(), "failed to set passphrase on TapLockServer", Toast.LENGTH_SHORT).show();
 		}
 
+		@Override
+		public void setBluetoothEnabled() throws RemoteException {
+			addDevice();
+		}
+
 	};
 
 	@Override
@@ -195,7 +202,6 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 				if (mInWriteMode && NfcAdapter.ACTION_TAG_DISCOVERED.equals(action) && intent.hasExtra(TapLockService.EXTRA_DEVICE_NAME)) {
 					Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
 					String name = intent.getStringExtra(TapLockService.EXTRA_DEVICE_NAME);
-					Log.d(TAG, "write tag: " + name);
 					if ((tag != null) && (name != null)) {
 						// write the device and address
 						String lang = "en";
@@ -235,27 +241,24 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 									ndef.writeNdefMessage(message);
 								}
 								ndef.close();
-								Log.d(TAG, "tag written");
 								Toast.makeText(this, "tag written", Toast.LENGTH_LONG).show();
 							} catch (IOException e) {
-								Log.d(TAG, e.toString());
+								Log.e(TAG, e.toString());
 							} catch (FormatException e) {
-								Log.d(TAG, e.toString());
+								Log.e(TAG, e.toString());
 							}
 						} else {
-							Log.d(TAG, "no ndef, format");
 							NdefFormatable format = NdefFormatable.get(tag);
 							if (format != null) {
 								try {
 									format.connect();
 									format.format(message);
 									format.close();
-									Log.d(TAG, "tag written");
 									Toast.makeText(getApplicationContext(), "tag written", Toast.LENGTH_LONG);
 								} catch (IOException e) {
-									Log.d(TAG, e.toString());
+									Log.e(TAG, e.toString());
 								} catch (FormatException e) {
-									Log.d(TAG, e.toString());
+									Log.e(TAG, e.toString());
 								}
 							}
 						}
@@ -265,7 +268,8 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 			}
 			mInWriteMode = false;
 		} else {
-			final SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
+			mDevices.clear();
+			SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
 			Set<String> devices = sp.getStringSet(getString(R.string.key_devices), null);
 			if (devices != null) {
 				for (String device : devices) {
@@ -312,10 +316,17 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 					}
 				}
 			}
+			// start the service before binding so that the service stays around for faster future connections
+			startService(new Intent(this, TapLockService.class));
+			bindService(new Intent(this, TapLockService.class), this, BIND_AUTO_CREATE);
+
+			if (mShowTapLockSettingsInfo && (mDevices.size() == 0)) {
+				mShowTapLockSettingsInfo = false;
+				Intent i = new Intent(this, TapLockInfo.class);
+				i.putExtra(EXTRA_INFO, getString(R.string.info_taplocksettings));
+				startActivity(i);
+			}
 		}
-		// start the service before binding so that the service stays around for faster future connections
-		startService(new Intent(this, TapLockService.class));
-		bindService(new Intent(this, TapLockService.class), this, BIND_AUTO_CREATE);
 	}
 
 	@Override
@@ -417,77 +428,13 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 		menuInflater.inflate(R.menu.menu_settings, menu);
 		return super.onCreateOptionsMenu(menu);
 	}
-	
+
 	@Override
 	public boolean onOptionsItemSelected(MenuItem item) {
 		int itemId = item.getItemId();
-		if (itemId == R.id.button_add_device) {
-			// Get a set of currently paired devices
-			final BluetoothAdapter btAdapter = BluetoothAdapter.getDefaultAdapter();
-			if (btAdapter.isEnabled()) {
-				Set<BluetoothDevice> pairedDevices = btAdapter.getBondedDevices();
-				// launch dialog to select device
-				if (pairedDevices.size() > 0) {
-					int p = 0;
-					final String[] pairedDeviceNames = new String[pairedDevices.size()];
-					final String[] pairedDeviceAddresses = new String[pairedDevices.size()];
-					for (BluetoothDevice device : pairedDevices) {
-						pairedDeviceNames[p] = device.getName();
-						pairedDeviceAddresses[p++] = device.getAddress();
-					}
-					mDialog = new AlertDialog.Builder(TapLockSettings.this)
-					.setItems(pairedDeviceNames, new DialogInterface.OnClickListener() {
-
-						@Override
-						public void onClick(DialogInterface dialog, int which) {
-							addNewDevice(pairedDeviceNames[which], pairedDeviceAddresses[which]);
-						}
-
-					})
-					.setPositiveButton(getString(R.string.btn_bt_scan), new DialogInterface.OnClickListener() {
-						@Override
-						public void onClick(DialogInterface dialog, int which) {
-							if (mServiceInterface != null) {
-								try {
-									mServiceInterface.requestDiscovery();
-									mProgressDialog = new ProgressDialog(TapLockSettings.this);
-									mProgressDialog.setMessage(getString(R.string.msg_scanning));
-									mProgressDialog.setCancelable(true);
-									mProgressDialog.show();
-								} catch (RemoteException e) {
-									Log.e(TAG, e.toString());
-								}
-							}
-						}
-					})
-					.create();
-					mDialog.show();
-				} else {
-					if (mServiceInterface != null) {
-						try {
-							mServiceInterface.requestDiscovery();
-							mProgressDialog = new ProgressDialog(this);
-							mProgressDialog.setMessage(getString(R.string.msg_scanning));
-							mProgressDialog.setCancelable(true);
-							mProgressDialog.show();
-						} catch (RemoteException e) {
-							Log.e(TAG, e.toString());
-						}
-					}
-				}
-			} else {
-				mDialog = new AlertDialog.Builder(TapLockSettings.this)
-				.setMessage(R.string.msg_enable_bt)
-				.setPositiveButton(getString(android.R.string.ok), new DialogInterface.OnClickListener() {
-					@Override
-					public void onClick(DialogInterface dialog, int which) {
-						btAdapter.enable();
-					}
-				})
-				.create();
-				mDialog.show();
-			}
-		} else if (itemId == R.id.button_about) {
+		if (itemId == R.id.button_add_device)
+			addDevice();
+		else if (itemId == R.id.button_about) {
 			mDialog = new AlertDialog.Builder(TapLockSettings.this)
 			.setTitle(R.string.button_about)
 			.setMessage(R.string.about)
@@ -502,7 +449,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 					.create();
 					mDialog.show();
 				}
-				
+
 			})
 			.create();
 			mDialog.show();
@@ -510,6 +457,81 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 		return super.onOptionsItemSelected(item);
 	}
 	
+	private void addDevice() {
+		// Get a set of currently paired devices
+		BluetoothAdapter btAdapter = BluetoothAdapter.getDefaultAdapter();
+		if (btAdapter.isEnabled()) {
+			Set<BluetoothDevice> pairedDevices = btAdapter.getBondedDevices();
+			// launch dialog to select device
+			if (pairedDevices.size() > 0) {
+				int p = 0;
+				final String[] pairedDeviceNames = new String[pairedDevices.size()];
+				final String[] pairedDeviceAddresses = new String[pairedDevices.size()];
+				for (BluetoothDevice device : pairedDevices) {
+					pairedDeviceNames[p] = device.getName();
+					pairedDeviceAddresses[p++] = device.getAddress();
+				}
+				mDialog = new AlertDialog.Builder(TapLockSettings.this)
+				.setItems(pairedDeviceNames, new DialogInterface.OnClickListener() {
+
+					@Override
+					public void onClick(DialogInterface dialog, int which) {
+						addNewDevice(pairedDeviceNames[which], pairedDeviceAddresses[which]);
+					}
+
+				})
+				.setPositiveButton(getString(R.string.btn_bt_scan), new DialogInterface.OnClickListener() {
+					@Override
+					public void onClick(DialogInterface dialog, int which) {
+						if (mServiceInterface != null) {
+							try {
+								mServiceInterface.requestDiscovery();
+								mProgressDialog = new ProgressDialog(TapLockSettings.this);
+								mProgressDialog.setMessage(getString(R.string.msg_scanning));
+								mProgressDialog.setCancelable(true);
+								mProgressDialog.show();
+							} catch (RemoteException e) {
+								Log.e(TAG, e.toString());
+							}
+						}
+					}
+				})
+				.create();
+				mDialog.show();
+			} else {
+				if (mServiceInterface != null) {
+					try {
+						mServiceInterface.requestDiscovery();
+						mProgressDialog = new ProgressDialog(this);
+						mProgressDialog.setMessage(getString(R.string.msg_scanning));
+						mProgressDialog.setCancelable(true);
+						mProgressDialog.show();
+					} catch (RemoteException e) {
+						Log.e(TAG, e.toString());
+					}
+				}
+			}
+		} else {
+			mDialog = new AlertDialog.Builder(TapLockSettings.this)
+			.setTitle(R.string.ttl_enablebt)
+			.setMessage(R.string.msg_enablebt)
+			.setPositiveButton(getString(android.R.string.ok), new DialogInterface.OnClickListener() {
+				@Override
+				public void onClick(DialogInterface dialog, int which) {
+					if (mServiceInterface != null) {
+						try {
+							mServiceInterface.enableBluetooth();
+						} catch (RemoteException e) {
+							Log.e(TAG, e.toString());
+						}
+					}
+				}
+			})
+			.create();
+			mDialog.show();
+		}
+	}
+
 	private String[] getDeviceNames() {
 		String[] deviceNames = new String[mDevices.size()];
 		int d = 0;
@@ -577,8 +599,14 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 		mDevices.add(deviceJObj);
 		String[] deviceNames = getDeviceNames();
 		setListAdapter(new ArrayAdapter<String>(TapLockSettings.this, android.R.layout.simple_list_item_1, deviceNames));
-		// set the passphrase
-		setPassphrase(mDevices.size() - 1);
+		// instead of setting the passphrase for new devices, show info
+		// setPassphrase(mDevices.size() - 1);
+		if (mDevices.size() == 1) {
+			// first device added
+			Intent i = new Intent(TapLockSettings.this, TapLockInfo.class);
+			i.putExtra(EXTRA_INFO, getString(R.string.info_newdevice));
+			startActivity(i);
+		}
 	}
 
 	@Override

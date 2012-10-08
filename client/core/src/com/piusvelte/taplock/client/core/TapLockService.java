@@ -60,6 +60,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 	public static final String EXTRA_DEVICE_ADDRESS = "com.piusvelte.taplock.EXTRA_DEVICE_ADDRESS";
 	public static final String EXTRA_DEVICE_NAME = "com.piusvelte.taplock.EXTRA_DEVICE_NAME";
 	public static final String EXTRA_DEVICE_STATE = "com.piusvelte.taplock.EXTRA_DEVICE_STATE";
+	public static final String EXTRA_INFO = "com.piusvelte.taplock.EXTRA_INFO";
 	public static final String PARAM_ACTION = "action";
 	public static final String PARAM_HMAC = "hmac";
 	public static final String PARAM_PASSPHRASE = "passphrase";
@@ -123,6 +124,12 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 		public void pairDevice(String address) throws RemoteException {
 			requestWrite(address, null, null);
 		}
+
+		@Override
+		public void enableBluetooth() throws RemoteException {
+			mStartedBT = true;
+			mBtAdapter.enable();
+		}
 	};
 
 	@Override
@@ -152,6 +159,13 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 							requestWrite(mQueueAddress, mQueueState, mQueuePassphrase);
 						else if (mRequestDiscovery && !mBtAdapter.isDiscovering())
 							mBtAdapter.startDiscovery();
+						else if (mUIInterface != null) {
+							try {
+								mUIInterface.setBluetoothEnabled();
+							} catch (RemoteException e) {
+								Log.e(TAG, e.getMessage());
+							}
+						}
 					}
 				} else if (state == BluetoothAdapter.STATE_TURNING_OFF) {
 					if (mUIInterface != null) {
@@ -475,7 +489,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 				mHandler.post(new MessageSetter("failed to get socket, or connect"));
 			shutdown(pass);
 		}
-		
+
 		// convenience method for shutting down thread
 		public void shutdown() {
 			shutdown(true);
@@ -561,7 +575,6 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 
 		@Override
 		public void run() {
-			Log.d(TAG, "Pairing result: " + mName + " " + mAddress);
 			if (mUIInterface != null) {
 				try {
 					mUIInterface.setPairingResult(mName, mAddress);
@@ -584,7 +597,6 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 
 		@Override
 		public void run() {
-			Log.d(TAG, "Passphrase result: " + mPassphrase);
 			if (mUIInterface != null) {
 				try {
 					mUIInterface.setPassphrase(mAddress, mPassphrase);
@@ -596,9 +608,9 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 	}
 
 	class StateFinishedSetter implements Runnable {
-		
+
 		boolean mPass = false;
-		
+
 		public StateFinishedSetter(boolean pass) {
 			mPass = pass;
 		}

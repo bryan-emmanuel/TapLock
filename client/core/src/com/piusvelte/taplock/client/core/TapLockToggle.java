@@ -90,6 +90,10 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 		public void setPassphrase(String address, String passphrase) throws RemoteException {
 		}
 
+		@Override
+		public void setBluetoothEnabled() throws RemoteException {
+		}
+
 	};
 
 	@Override
@@ -108,6 +112,7 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 	protected void onResume() {
 		super.onResume();
 		mProgressDialog = new ProgressDialog(this);
+		mProgressDialog.setTitle(R.string.title_toggle);
 		mProgressDialog.setMessage(mProgressMessage);
 		mProgressDialog.setCancelable(true);
 		mProgressDialog.setOnCancelListener(new DialogInterface.OnCancelListener() {
@@ -117,6 +122,7 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 			}
 		});
 		mProgressDialog.show();
+		mDevices.clear();
 		final SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
 		Set<String> devices = sp.getStringSet(getString(R.string.key_devices), null);
 		if (devices != null) {

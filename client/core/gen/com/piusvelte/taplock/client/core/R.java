@@ -83,6 +83,8 @@ containing a value of this type.
     }
     public static final class color {
         public static final int actionbar_title_color=0x7f060000;
+        public static final int translucent_black=0x7f060002;
+        public static final int white=0x7f060001;
     }
     public static final class dimen {
         public static final int actionbar_compat_button_home_width=0x7f070002;
@@ -104,18 +106,21 @@ containing a value of this type.
         public static final int actionbar_compat_item_refresh=0x7f080003;
         public static final int actionbar_compat_item_refresh_progress=0x7f080002;
         public static final int actionbar_compat_title=0x7f080001;
-        public static final int button_about=0x7f080009;
-        public static final int button_add_device=0x7f080008;
-        public static final int device_name=0x7f080006;
-        public static final int device_state=0x7f080007;
+        public static final int button_about=0x7f08000b;
+        public static final int button_add_device=0x7f08000a;
+        public static final int close=0x7f080006;
+        public static final int device_name=0x7f080008;
+        public static final int device_state=0x7f080009;
+        public static final int info=0x7f080005;
         public static final int menu_refresh=0x7f080004;
-        public static final int widget=0x7f080005;
+        public static final int widget=0x7f080007;
     }
     public static final class layout {
         public static final int actionbar_indeterminate_progress=0x7f030000;
-        public static final int main=0x7f030001;
-        public static final int toggle=0x7f030002;
-        public static final int widget=0x7f030003;
+        public static final int info=0x7f030001;
+        public static final int main=0x7f030002;
+        public static final int toggle=0x7f030003;
+        public static final int widget=0x7f030004;
     }
     public static final class menu {
         public static final int menu_settings=0x7f0b0000;
@@ -128,29 +133,34 @@ containing a value of this type.
         public static final int button_add_device=0x7f090001;
         public static final int button_license=0x7f090011;
         public static final int chk_sec=0x7f090002;
+        public static final int info_newdevice=0x7f090017;
+        public static final int info_noinfo=0x7f090015;
+        public static final int info_taplocksettings=0x7f090016;
         public static final int key_devices=0x7f090006;
         public static final int key_preferences=0x7f090005;
         public static final int key_widgets=0x7f090007;
         public static final int license=0x7f090012;
-        public static final int mn_remove=0x7f09000a;
+        public static final int mn_remove=0x7f090009;
         public static final int msg_device_not_conf=0x7f09000e;
-        public static final int msg_enable_bt=0x7f09000d;
+        public static final int msg_enablebt=0x7f09000d;
         public static final int msg_scanning=0x7f090004;
         public static final int no_devices=0x7f090008;
-        public static final int ttl_enablebt=0x7f090009;
-        public static final int widget_device_name=0x7f09000b;
-        public static final int widget_device_state=0x7f09000c;
+        public static final int ok=0x7f090014;
+        public static final int title_toggle=0x7f090013;
+        public static final int ttl_enablebt=0x7f09000c;
+        public static final int widget_device_name=0x7f09000a;
+        public static final int widget_device_state=0x7f09000b;
     }
     public static final class style {
-        public static final int ActionBar=0x7f0a0009;
-        public static final int ActionBarCompat=0x7f0a0002;
-        public static final int ActionBarCompatHomeItem=0x7f0a0008;
-        public static final int ActionBarCompatItem=0x7f0a0007;
-        public static final int ActionBarCompatItemBase=0x7f0a0003;
-        public static final int ActionBarCompatProgressIndicator=0x7f0a0004;
-        public static final int ActionBarCompatTitle=0x7f0a0006;
-        public static final int ActionBarCompatTitleBase=0x7f0a0005;
-        public static final int ActionBarTitle=0x7f0a000a;
+        public static final int ActionBar=0x7f0a000a;
+        public static final int ActionBarCompat=0x7f0a0003;
+        public static final int ActionBarCompatHomeItem=0x7f0a0009;
+        public static final int ActionBarCompatItem=0x7f0a0008;
+        public static final int ActionBarCompatItemBase=0x7f0a0004;
+        public static final int ActionBarCompatProgressIndicator=0x7f0a0005;
+        public static final int ActionBarCompatTitle=0x7f0a0007;
+        public static final int ActionBarCompatTitleBase=0x7f0a0006;
+        public static final int ActionBarTitle=0x7f0a000b;
         /** 
   Copyright 2011 The Android Open Source Project
 
@@ -167,7 +177,8 @@ containing a value of this type.
   limitations under the License.
   
          */
-        public static final int AppTheme=0x7f0a0001;
+        public static final int AppTheme=0x7f0a0002;
+        public static final int TapLockInfo=0x7f0a0001;
         public static final int TapLockToggle=0x7f0a0000;
     }
     public static final class xml {

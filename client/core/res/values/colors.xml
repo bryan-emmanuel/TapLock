@@ -16,4 +16,6 @@
   -->
 <resources>
     <color name="actionbar_title_color">#224894</color>
+    <color name="white">#FFFFFF</color>
+    <color name="translucent_black">#99000000</color>
 </resources>

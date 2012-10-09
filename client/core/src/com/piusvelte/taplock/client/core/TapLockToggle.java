@@ -102,12 +102,6 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 		setContentView(R.layout.toggle);
 	}
 
-	@Override 
-	public void onNewIntent(Intent intent) {
-		// handle NFC intents
-		setIntent(intent);
-	}
-
 	@Override
 	protected void onResume() {
 		super.onResume();
@@ -206,10 +200,8 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 				} else
 					finish();
 			} else if (intent.getData() != null) {
-				Uri remoteCmd = intent.getData();
-				action = remoteCmd.getLastPathSegment();
-				String taggedDeviceName = remoteCmd.getHost();
-				if ((ACTION_UNLOCK.equals(action) || ACTION_LOCK.equals(action) || ACTION_TOGGLE.equals(action)) && (taggedDeviceName != null))
+				String taggedDeviceName = intent.getData().getHost();
+				if (taggedDeviceName != null)
 					toggleDevice(taggedDeviceName);
 				else
 					finish();

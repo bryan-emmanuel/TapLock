@@ -280,7 +280,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 					}
 				}
 			}
-			final String[] displayNames = getDeviceNames();
+			final String[] displayNames = getDeviceNames(mDevices);
 			setListAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, displayNames));
 
 			// check if configuring a widget
@@ -392,7 +392,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 					Toast.makeText(TapLockSettings.this, "Touch tag", Toast.LENGTH_LONG).show();
 				} else if (ACTION_REMOVE.equals(action)) {
 					mDevices.remove(deviceIdx);
-					String[] deviceNames = getDeviceNames();
+					String[] deviceNames = getDeviceNames(mDevices);
 					setListAdapter(new ArrayAdapter<String>(TapLockSettings.this, android.R.layout.simple_list_item_1, deviceNames));
 				} else if (ACTION_PASSPHRASE.equals(action))
 					setPassphrase(deviceIdx);
@@ -415,7 +415,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 			// remove device
 			int deviceIdx = (int) ((AdapterContextMenuInfo) item.getMenuInfo()).id;
 			mDevices.remove(deviceIdx);
-			String[] deviceNames = getDeviceNames();
+			String[] deviceNames = getDeviceNames(mDevices);
 			setListAdapter(new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, deviceNames));
 			return true;
 		}
@@ -532,10 +532,10 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 		}
 	}
 
-	private String[] getDeviceNames() {
-		String[] deviceNames = new String[mDevices.size()];
+	protected static String[] getDeviceNames(ArrayList<JSONObject> devices) {
+		String[] deviceNames = new String[devices.size()];
 		int d = 0;
-		for (JSONObject device : mDevices) {
+		for (JSONObject device : devices) {
 			try {
 				deviceNames[d++] = device.getString(KEY_NAME);
 			} catch (JSONException e) {
@@ -597,7 +597,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 			Log.e(TAG, e.getMessage());
 		}
 		mDevices.add(deviceJObj);
-		String[] deviceNames = getDeviceNames();
+		String[] deviceNames = getDeviceNames(mDevices);
 		setListAdapter(new ArrayAdapter<String>(TapLockSettings.this, android.R.layout.simple_list_item_1, deviceNames));
 		// instead of setting the passphrase for new devices, show info
 		// setPassphrase(mDevices.size() - 1);

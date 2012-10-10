@@ -137,12 +137,12 @@ public class ConnectionThread extends Thread {
 										if (TapLockServer.ACTION_LOCK.equals(requestAction)) {
 											if (TapLockServer.OS == TapLockServer.OS_NIX)
 												command = "gnome-screensaver-command -a";
-											else
+											else if (TapLockServer.OS == TapLockServer.OS_WIN)
 												command = "rundll32.exe user32.dll, LockWorkStation";
 										} else if (TapLockServer.ACTION_UNLOCK.equals(requestAction)) {
 											if (TapLockServer.OS == TapLockServer.OS_NIX)
 												command = "gnome-screensaver-command -d";
-											else
+											else if (TapLockServer.OS == TapLockServer.OS_WIN)
 												command = "rundll32.exe user32.dll, UnLockWorkStation";
 										}
 										if (command != null) {
@@ -160,7 +160,7 @@ public class ConnectionThread extends Thread {
 												} catch (IOException e) {
 													TapLockServer.writeLog(e.getMessage());
 												} 
-												while(line != null) { 
+												while (line != null) { 
 													TapLockServer.writeLog(line);
 													try {
 														line = reader.readLine();
@@ -168,6 +168,10 @@ public class ConnectionThread extends Thread {
 														TapLockServer.writeLog(e.getMessage());
 													} 
 												}
+												if (TapLockServer.ACTION_LOCK.equals(requestAction))
+													TapLockServer.sState = TapLockServer.STATE_LOCKED;
+												else if (TapLockServer.ACTION_UNLOCK.equals(requestAction))
+													TapLockServer.sState = TapLockServer.STATE_UNLOCKED;
 											}
 										}
 									}

@@ -19,9 +19,7 @@
  */
 package com.piusvelte.taplock.client.core;
 
-import static com.piusvelte.taplock.client.core.TapLockService.ACTION_LOCK;
 import static com.piusvelte.taplock.client.core.TapLockService.ACTION_TOGGLE;
-import static com.piusvelte.taplock.client.core.TapLockService.ACTION_UNLOCK;
 import static com.piusvelte.taplock.client.core.TapLockService.KEY_ADDRESS;
 import static com.piusvelte.taplock.client.core.TapLockService.KEY_NAME;
 
@@ -40,7 +38,6 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
-import android.net.Uri;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;

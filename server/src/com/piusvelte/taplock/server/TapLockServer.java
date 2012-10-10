@@ -52,6 +52,7 @@ public class TapLockServer implements Daemon {
 
 	protected static final int STATE_LOCKED = 1;
 	protected static final int STATE_UNLOCKED = 0;
+	protected static int sState = STATE_UNLOCKED;
 
 	protected static final String sPassphraseKey = "passphrase";
 	protected static final String sPropertiesKey = "properties";
@@ -164,11 +165,11 @@ public class TapLockServer implements Daemon {
 
 	protected static String getToggleAction() {
 		String command = null;
-		if (TapLockServer.OS == TapLockServer.OS_NIX)
+		if (OS == OS_NIX)
 			command = "gnome-screensaver-command -q";
-		else
-			command = "rundll32.exe user32.dll, UnLockWorkStation";
-		writeLog("getState:" + command);
+		else if (OS == OS_WIN)
+			return ((sState == STATE_LOCKED) ? ACTION_UNLOCK : ACTION_LOCK);
+//			command = "rundll32.exe user32.dll, UnLockWorkStation";
 		if (command != null) {
 			Process p = null;
 			try {
@@ -187,9 +188,9 @@ public class TapLockServer implements Daemon {
 				while(line != null) 
 				{ 
 					System.out.println("command result: " + line);
-					if ((TapLockServer.OS == TapLockServer.OS_NIX) && line.contains("inactive"))
+					if ((OS == OS_NIX) && line.contains("inactive"))
 						return ACTION_LOCK;
-					else if ((TapLockServer.OS == TapLockServer.OS_NIX))
+					else if (OS == OS_NIX)
 						return ACTION_UNLOCK;
 					try {
 						line = reader.readLine();

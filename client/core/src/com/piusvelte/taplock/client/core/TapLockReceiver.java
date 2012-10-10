@@ -19,20 +19,21 @@
  */
 package com.piusvelte.taplock.client.core;
 
+import static com.piusvelte.taplock.client.core.TapLockService.ACTION_FIRE_SETTING;
+
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.util.Log;
 
 public class TapLockReceiver extends BroadcastReceiver {
-	
-	private static final String TAG = "TapLockReceiver";
 
 	@Override
 	public void onReceive(Context context, Intent intent) {
 		String action = intent.getAction();
-		Log.d(TAG, "action: " + action);
-		context.startService(intent.setClass(context, TapLockService.class));
+		if (ACTION_FIRE_SETTING.equals(action))
+			context.startActivity(intent.setClass(context, TapLockToggle.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+		else
+			context.startService(intent.setClass(context, TapLockService.class));
 	}
 
 }

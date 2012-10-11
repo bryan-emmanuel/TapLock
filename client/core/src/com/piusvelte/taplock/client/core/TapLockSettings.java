@@ -460,12 +460,13 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 						public void onClick(DialogInterface dialog, int which) {
 							dialog.cancel();
 							String action = getResources().getStringArray(R.array.download_values)[which];
-							if (ACTION_DOWNLOAD_SDCARD.equals(action))
-								copyFileToSDCard(TAPLOCKSERVER);
+							if (ACTION_DOWNLOAD_SDCARD.equals(action) && copyFileToSDCard(TAPLOCKSERVER))
+								Toast.makeText(TapLockSettings.this, "Done!", Toast.LENGTH_SHORT).show();
 							else if (ACTION_DOWNLOAD_EMAIL.equals(action) && copyFileToSDCard(TAPLOCKSERVER)) {
 								Intent emailIntent = new Intent(android.content.Intent.ACTION_SEND);
-								emailIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse("file://"+ Environment.getExternalStorageDirectory().getPath() + TAPLOCKSERVER));
-								startActivity(emailIntent);
+								emailIntent.setType("application/java-archive");
+								emailIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse("file://" + Environment.getExternalStorageDirectory().getPath() + TAPLOCKSERVER));
+								startActivity(Intent.createChooser(emailIntent, "E-Mail TapLockServer.jar"));
 							}
 						}
 
@@ -496,12 +497,12 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 	private boolean copyFileToSDCard(String filename) {
 		AssetManager assetManager = getAssets();
 		String state = Environment.getExternalStorageState();
-		if (Environment.MEDIA_MOUNTED.equals(state) || Environment.MEDIA_MOUNTED_READ_ONLY.equals(state))
+		if (!Environment.MEDIA_MOUNTED.equals(state) || Environment.MEDIA_MOUNTED_READ_ONLY.equals(state))
 			Toast.makeText(TapLockSettings.this, R.string.msg_sdcardunavailable, Toast.LENGTH_SHORT).show();
 		else {
 			try {
 				InputStream in = assetManager.open(filename);
-				OutputStream out = new FileOutputStream(Environment.getExternalStorageDirectory().getPath() + TAPLOCKSERVER);
+				OutputStream out = new FileOutputStream(Environment.getExternalStorageDirectory().getPath() + "/" + TAPLOCKSERVER);
 				byte[] buffer = new byte[1024];
 				int read;
 				while ((read = in.read(buffer)) != -1)

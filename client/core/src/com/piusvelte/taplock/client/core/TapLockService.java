@@ -83,7 +83,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 	private ArrayList<JSONObject> mDevices = new ArrayList<JSONObject>();
 	private static final UUID sTapLockUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 	private int[] mThreadLock = new int[0];
-	private static final int MAX_CONNECTION_ATTEMPTS = 3;
+	private static final int MAX_CONNECTION_ATTEMPTS = 4;
 	private Handler mHandler = new Handler();
 
 	private ITapLockUI mUIInterface;
@@ -377,10 +377,9 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 			boolean pass = false;
 			mBtAdapter.cancelDiscovery();
 			BluetoothDevice device = mBtAdapter.getRemoteDevice(mAddress);
-			mHandler.post(new MessageSetter("connect to: " + mAddress));
+			mHandler.post(new MessageSetter("connecting..."));
 			int connectionAttempt;
 			for (connectionAttempt = 0; connectionAttempt < MAX_CONNECTION_ATTEMPTS; connectionAttempt++) {
-				mHandler.post(new MessageSetter("connection attempt: " + (connectionAttempt + 1)));
 				try {
 					mSocket = device.createRfcommSocketToServiceRecord(sTapLockUUID);
 					mSocket.connect();
@@ -396,7 +395,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 							inStream = mSocket.getInputStream();
 							outStream = mSocket.getOutputStream();
 						} catch (IOException e) {
-							mHandler.post(new MessageSetter("failed to get streams: " + e.getMessage()));
+							mHandler.post(new MessageSetter("...failed to get streams: " + e.getMessage()));
 							shutdown(pass);
 							return;
 						}
@@ -405,7 +404,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 						try {
 							readBytes = inStream.read(buffer);
 						} catch (IOException e) {
-							mHandler.post(new MessageSetter("failed to read input stream: " + e.getMessage()));
+							mHandler.post(new MessageSetter("...failed to read input stream: " + e.getMessage()));
 						}
 						if (readBytes != -1) {
 							// construct a string from the valid bytes in the buffer
@@ -417,7 +416,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 								if (responseJObj.has(PARAM_CHALLENGE))
 									challenge = responseJObj.getString(PARAM_CHALLENGE);
 							} catch (JSONException e) {
-								mHandler.post(new MessageSetter("failed to parse response: " + responseStr + ", " + e.getMessage()));
+								mHandler.post(new MessageSetter("...failed to parse response: " + responseStr + ", " + e.getMessage()));
 							}
 							if (challenge != null) {
 								// get passphrase
@@ -440,14 +439,14 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 															mHandler.post(new PassphraseSetter(mAddress, mNewPassphrase));
 														pass = true;
 													} catch (JSONException e) {
-														mHandler.post(new MessageSetter("failed to build request: " + e.getMessage()));
+														mHandler.post(new MessageSetter("...failed to build request: " + e.getMessage()));
 													}
 												} catch (NoSuchAlgorithmException e) {
-													mHandler.post(new MessageSetter("failed to get hash string: " + e.getMessage()));
+													mHandler.post(new MessageSetter("...failed to get hash string: " + e.getMessage()));
 												} catch (UnsupportedEncodingException e) {
-													mHandler.post(new MessageSetter("failed to get hash string: " + e.getMessage()));
+													mHandler.post(new MessageSetter("...failed to get hash string: " + e.getMessage()));
 												} catch (IOException e) {
-													mHandler.post(new MessageSetter("failed to write to output stream: " + e.getMessage()));
+													mHandler.post(new MessageSetter("...failed to write to output stream: " + e.getMessage()));
 												}
 											}
 											break;
@@ -457,9 +456,9 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 									}
 								}
 								if (passphrase == null)
-									mHandler.post(new MessageSetter("no passphrase found for device"));
+									mHandler.post(new MessageSetter("...no passphrase found for device"));
 							} else
-								mHandler.post(new MessageSetter("failed to receive a challenge"));
+								mHandler.post(new MessageSetter("...failed to receive a challenge"));
 							// check for error messages
 							try {
 								readBytes = inStream.read(buffer);
@@ -482,13 +481,13 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 									mHandler.post(new MessageSetter("error: " + error));
 							}
 						} else
-							mHandler.post(new MessageSetter("failed to read input stream"));
+							mHandler.post(new MessageSetter("...failed to read input stream"));
 					}
 					break;
 				}
 			}
 			if (connectionAttempt == MAX_CONNECTION_ATTEMPTS)
-				mHandler.post(new MessageSetter("failed to get socket, or connect"));
+				mHandler.post(new MessageSetter("...device unavailable."));
 			shutdown(pass);
 		}
 
@@ -498,7 +497,6 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 		}
 
 		public void shutdown(boolean pass) {
-			mHandler.post(new MessageSetter("connect thread shutdown"));
 			if (inStream != null) {
 				try {
 					inStream.close();
@@ -619,7 +617,6 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 
 		@Override
 		public void run() {
-			Log.d(TAG, "state finished");
 			if (mUIInterface != null) {
 				try {
 					mUIInterface.setStateFinished(mPass);

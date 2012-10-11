@@ -26,6 +26,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Properties;
@@ -55,8 +56,6 @@ public class TapLockServer implements Daemon {
 	protected static int sState = STATE_UNLOCKED;
 
 	protected static final String sPassphraseKey = "passphrase";
-	protected static final String sPropertiesKey = "properties";
-	protected static final String sLogKey = "log";
 	protected static String sPassphrase = "TapLock";
 	protected static String sProperties = "taplock.properties";
 	protected static String sLog = "taplock.log";
@@ -83,18 +82,16 @@ public class TapLockServer implements Daemon {
 				cmd = "start";
 		} else
 			cmd = "start";
-
-		for (String arg : args) {
-			int eqIdx = arg.indexOf("=");
-			if (eqIdx != -1) {
-				String key = arg.substring(0, eqIdx++);
-				String value = arg.substring(eqIdx);
-				if (sPropertiesKey.equals(key))
-					sProperties = value;
-				else if (sLogKey.equals(key))
-					sLog = value;
-			}
+		
+		String path = TapLockServer.class.getProtectionDomain().getCodeSource().getLocation().getPath();
+		try {
+			String decodedPath = URLDecoder.decode(path, "UTF-8");
+			sProperties = decodedPath + sProperties;
+			sLog = decodedPath + sLog;
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
 		}
+		
 
 		if ("start".equals(cmd)) {
 			initialize();
@@ -104,8 +101,6 @@ public class TapLockServer implements Daemon {
 			shutdown();
 		} else
 			shutdown();
-
-
 	}
 
 	private static void initialize() {

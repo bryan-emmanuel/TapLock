@@ -20,6 +20,7 @@
 package com.piusvelte.taplock.server;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -86,12 +87,16 @@ public class TapLockServer implements Daemon {
 		String path = TapLockServer.class.getProtectionDomain().getCodeSource().getLocation().getPath();
 		try {
 			String decodedPath = URLDecoder.decode(path, "UTF-8");
+			if (decodedPath != null) {
+				int lastPathIdx = decodedPath.lastIndexOf("TapLockServer.jar");
+				if (lastPathIdx != -1)
+					decodedPath = decodedPath.substring(0, lastPathIdx);
+			}
 			sProperties = decodedPath + sProperties;
 			sLog = decodedPath + sLog;
 		} catch (UnsupportedEncodingException e) {
 			e.printStackTrace();
 		}
-		
 
 		if ("start".equals(cmd)) {
 			initialize();
@@ -104,13 +109,22 @@ public class TapLockServer implements Daemon {
 	}
 
 	private static void initialize() {
-
+		
 		try {
 			sLogFileHandler = new FileHandler(sLog);
 		} catch (SecurityException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
 			e.printStackTrace();
+		}
+
+		File propertiesFile = new File(sProperties);
+		if (!propertiesFile.exists()) {
+			try {
+				propertiesFile.createNewFile();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 		}
 
 		Properties prop = new Properties();

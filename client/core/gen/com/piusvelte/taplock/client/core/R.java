@@ -11,6 +11,8 @@ public final class R {
     public static final class array {
         public static final int actions_entries=0x7f050000;
         public static final int actions_values=0x7f050001;
+        public static final int download_entries=0x7f050002;
+        public static final int download_values=0x7f050003;
     }
     public static final class attr {
         /** <p>Must be a reference to another resource, in the form "<code>@[+][<i>package</i>:]<i>type</i>:<i>name</i></code>"
@@ -131,11 +133,13 @@ containing a value of this type.
         public static final int btn_bt_scan=0x7f090003;
         public static final int button_about=0x7f09000f;
         public static final int button_add_device=0x7f090001;
+        public static final int button_getserver=0x7f090019;
         public static final int button_license=0x7f090011;
         public static final int chk_sec=0x7f090002;
-        public static final int info_newdevice=0x7f090017;
-        public static final int info_noinfo=0x7f090015;
-        public static final int info_taplocksettings=0x7f090016;
+        public static final int close=0x7f090015;
+        public static final int info_newdevice=0x7f090018;
+        public static final int info_noinfo=0x7f090016;
+        public static final int info_taplocksettings=0x7f090017;
         public static final int key_devices=0x7f090006;
         public static final int key_preferences=0x7f090005;
         public static final int key_widgets=0x7f090007;
@@ -143,7 +147,9 @@ containing a value of this type.
         public static final int mn_remove=0x7f090009;
         public static final int msg_device_not_conf=0x7f09000e;
         public static final int msg_enablebt=0x7f09000d;
+        public static final int msg_oops=0x7f09001a;
         public static final int msg_scanning=0x7f090004;
+        public static final int msg_sdcardunavailable=0x7f09001b;
         public static final int no_devices=0x7f090008;
         public static final int ok=0x7f090014;
         public static final int title_toggle=0x7f090013;

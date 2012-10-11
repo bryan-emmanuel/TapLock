@@ -57,14 +57,12 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 	public static final String ACTION_PASSPHRASE = "com.piusvelte.taplock.ACTION_PASSPHRASE";
 	public static final String ACTION_TAG = "com.piusvelte.taplock.ACTION_TAG";
 	public static final String ACTION_REMOVE = "com.piusvelte.taplock.ACTION_REMOVE";
-	public static final String ACTION_FIRE_SETTING = "com.twofortyfouram.locale.intent.action.FIRE_SETTING";
-	public static final String ACTION_EDIT_SETTING = "com.twofortyfouram.locale.intent.action.EDIT_SETTING";
+	public static final String ACTION_DOWNLOAD_SDCARD = "com.piusvelte.taplock.ACTION_DOWNLOAD_SDCARD";
+	public static final String ACTION_DOWNLOAD_EMAIL = "com.piusvelte.taplock.ACTION_DOWNLOAD_EMAIL";
 	public static final String EXTRA_DEVICE_ADDRESS = "com.piusvelte.taplock.EXTRA_DEVICE_ADDRESS";
 	public static final String EXTRA_DEVICE_NAME = "com.piusvelte.taplock.EXTRA_DEVICE_NAME";
 	public static final String EXTRA_DEVICE_STATE = "com.piusvelte.taplock.EXTRA_DEVICE_STATE";
 	public static final String EXTRA_INFO = "com.piusvelte.taplock.EXTRA_INFO";
-	public static final String EXTRA_BLURB = "com.twofortyfouram.locale.intent.extra.BLURB";
-	public static final String EXTRA_BUNDLE = "com.twofortyfouram.locale.intent.extra.BUNDLE";
 	public static final String PARAM_ACTION = "action";
 	public static final String PARAM_HMAC = "hmac";
 	public static final String PARAM_PASSPHRASE = "passphrase";

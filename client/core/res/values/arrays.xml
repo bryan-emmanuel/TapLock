@@ -35,4 +35,12 @@
 		<item>com.piusvelte.taplock.ACTION_REMOVE</item>
 		<item>com.piusvelte.taplock.ACTION_PASSPHRASE</item>
 	</string-array>
+	<string-array name="download_entries">
+	    <item>Copy the TapLockServer.jar to the sdcard</item>
+	    <item>E-Mail the TapLockServer.jar as an attachment</item>
+	</string-array>
+	<string-array name="download_values">
+	    <item>com.piusvelte.taplock.ACTION_DOWNLOAD_SDCARD</item>
+	    <item>com.piusvelte.taplock.ACTION_DOWNLOAD_EMAIL</item>
+	</string-array>
 </resources>

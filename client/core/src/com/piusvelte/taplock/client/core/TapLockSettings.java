@@ -25,13 +25,18 @@ import static com.piusvelte.taplock.client.core.TapLockService.ACTION_REMOVE;
 import static com.piusvelte.taplock.client.core.TapLockService.ACTION_TAG;
 import static com.piusvelte.taplock.client.core.TapLockService.ACTION_TOGGLE;
 import static com.piusvelte.taplock.client.core.TapLockService.ACTION_UNLOCK;
+import static com.piusvelte.taplock.client.core.TapLockService.ACTION_DOWNLOAD_SDCARD;
+import static com.piusvelte.taplock.client.core.TapLockService.ACTION_DOWNLOAD_EMAIL;
 import static com.piusvelte.taplock.client.core.TapLockService.KEY_ADDRESS;
 import static com.piusvelte.taplock.client.core.TapLockService.KEY_NAME;
 import static com.piusvelte.taplock.client.core.TapLockService.KEY_PASSPHRASE;
 import static com.piusvelte.taplock.client.core.TapLockService.DEFAULT_PASSPHRASE;
 import static com.piusvelte.taplock.client.core.TapLockService.EXTRA_INFO;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -54,6 +59,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
+import android.content.res.AssetManager;
+import android.net.Uri;
 import android.nfc.FormatException;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
@@ -62,6 +69,7 @@ import android.nfc.Tag;
 import android.nfc.tech.Ndef;
 import android.nfc.tech.NdefFormatable;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
@@ -85,6 +93,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 	private ArrayList<JSONObject> mUnpairedDevices = new ArrayList<JSONObject>();
 	private boolean mShowTapLockSettingsInfo = true;
 	private static final int REMOVE_ID = Menu.FIRST;
+	private static final String TAPLOCKSERVER = "TapLockServer.jar";
 
 	// NFC
 	private NfcAdapter mNfcAdapter = null;
@@ -438,6 +447,33 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 			mDialog = new AlertDialog.Builder(TapLockSettings.this)
 			.setTitle(R.string.button_about)
 			.setMessage(R.string.about)
+			.setNeutralButton(R.string.button_getserver, new DialogInterface.OnClickListener() {
+
+				@Override
+				public void onClick(DialogInterface dialog, int which) {
+					dialog.cancel();
+					mDialog = new AlertDialog.Builder(TapLockSettings.this)
+					.setTitle(R.string.button_getserver)
+					.setItems(R.array.download_entries, new DialogInterface.OnClickListener() {
+
+						@Override
+						public void onClick(DialogInterface dialog, int which) {
+							dialog.cancel();
+							String action = getResources().getStringArray(R.array.download_values)[which];
+							if (ACTION_DOWNLOAD_SDCARD.equals(action))
+								copyFileToSDCard(TAPLOCKSERVER);
+							else if (ACTION_DOWNLOAD_EMAIL.equals(action) && copyFileToSDCard(TAPLOCKSERVER)) {
+								Intent emailIntent = new Intent(android.content.Intent.ACTION_SEND);
+								emailIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse("file://"+ Environment.getExternalStorageDirectory().getPath() + TAPLOCKSERVER));
+								startActivity(emailIntent);
+							}
+						}
+
+					})
+					.create();
+					mDialog.show();
+				}
+			})
 			.setPositiveButton(R.string.button_license, new DialogInterface.OnClickListener() {
 
 				@Override
@@ -456,7 +492,34 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 		}
 		return super.onOptionsItemSelected(item);
 	}
-	
+
+	private boolean copyFileToSDCard(String filename) {
+		AssetManager assetManager = getAssets();
+		String state = Environment.getExternalStorageState();
+		if (Environment.MEDIA_MOUNTED.equals(state) || Environment.MEDIA_MOUNTED_READ_ONLY.equals(state))
+			Toast.makeText(TapLockSettings.this, R.string.msg_sdcardunavailable, Toast.LENGTH_SHORT).show();
+		else {
+			try {
+				InputStream in = assetManager.open(filename);
+				OutputStream out = new FileOutputStream(Environment.getExternalStorageDirectory().getPath() + TAPLOCKSERVER);
+				byte[] buffer = new byte[1024];
+				int read;
+				while ((read = in.read(buffer)) != -1)
+					out.write(buffer, 0, read);
+				in.close();
+				in = null;
+				out.flush();
+				out.close();
+				out = null;
+				return true;
+			} catch (IOException e) {
+				Log.e(TAG, e.getMessage());
+				Toast.makeText(TapLockSettings.this, R.string.msg_oops, Toast.LENGTH_SHORT).show();
+			}
+		}
+		return false;
+	}
+
 	private void addDevice() {
 		// Get a set of currently paired devices
 		BluetoothAdapter btAdapter = BluetoothAdapter.getDefaultAdapter();

@@ -112,6 +112,12 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 				finish();
 			}
 		});
+		mProgressDialog.setButton(getString(R.string.close), new DialogInterface.OnClickListener() {
+			@Override
+			public void onClick(DialogInterface dialog, int which) {
+				dialog.cancel();
+			}
+		});
 		mProgressDialog.show();
 		mDevices.clear();
 		final SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);

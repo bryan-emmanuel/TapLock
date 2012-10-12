@@ -19,6 +19,19 @@
  */
 package com.piusvelte.taplock.client.core;
 
+import static com.piusvelte.taplock.client.core.TapLock.KEY_ADDRESS;
+import static com.piusvelte.taplock.client.core.TapLock.KEY_NAME;
+import static com.piusvelte.taplock.client.core.TapLock.KEY_PASSPHRASE;
+import static com.piusvelte.taplock.client.core.TapLock.EXTRA_DEVICE_ADDRESS;
+import static com.piusvelte.taplock.client.core.TapLock.EXTRA_DEVICE_NAME;
+import static com.piusvelte.taplock.client.core.TapLock.ACTION_PASSPHRASE;
+import static com.piusvelte.taplock.client.core.TapLock.ACTION_TOGGLE;
+import static com.piusvelte.taplock.client.core.TapLock.PARAM_ACTION;
+import static com.piusvelte.taplock.client.core.TapLock.PARAM_CHALLENGE;
+import static com.piusvelte.taplock.client.core.TapLock.PARAM_ERROR;
+import static com.piusvelte.taplock.client.core.TapLock.PARAM_HMAC;
+import static com.piusvelte.taplock.client.core.TapLock.PARAM_PASSPHRASE;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -51,27 +64,6 @@ import android.widget.RemoteViews;
 
 public class TapLockService extends Service implements OnSharedPreferenceChangeListener {
 	private static final String TAG = "TapLockService";
-	public static final String ACTION_TOGGLE = "com.piusvelte.taplock.ACTION_TOGGLE";
-	public static final String ACTION_UNLOCK = "com.piusvelte.taplock.ACTION_UNLOCK";
-	public static final String ACTION_LOCK = "com.piusvelte.taplock.ACTION_LOCK";
-	public static final String ACTION_PASSPHRASE = "com.piusvelte.taplock.ACTION_PASSPHRASE";
-	public static final String ACTION_TAG = "com.piusvelte.taplock.ACTION_TAG";
-	public static final String ACTION_REMOVE = "com.piusvelte.taplock.ACTION_REMOVE";
-	public static final String ACTION_DOWNLOAD_SDCARD = "com.piusvelte.taplock.ACTION_DOWNLOAD_SDCARD";
-	public static final String ACTION_DOWNLOAD_EMAIL = "com.piusvelte.taplock.ACTION_DOWNLOAD_EMAIL";
-	public static final String EXTRA_DEVICE_ADDRESS = "com.piusvelte.taplock.EXTRA_DEVICE_ADDRESS";
-	public static final String EXTRA_DEVICE_NAME = "com.piusvelte.taplock.EXTRA_DEVICE_NAME";
-	public static final String EXTRA_DEVICE_STATE = "com.piusvelte.taplock.EXTRA_DEVICE_STATE";
-	public static final String EXTRA_INFO = "com.piusvelte.taplock.EXTRA_INFO";
-	public static final String PARAM_ACTION = "action";
-	public static final String PARAM_HMAC = "hmac";
-	public static final String PARAM_PASSPHRASE = "passphrase";
-	public static final String PARAM_CHALLENGE = "challenge";
-	public static final String PARAM_ERROR = "error";
-	public static final String KEY_NAME = "name";
-	public static final String KEY_PASSPHRASE = "passphrase";
-	public static final String KEY_ADDRESS = "address";
-	public static final String DEFAULT_PASSPHRASE = "TapLock";
 	private BluetoothAdapter mBtAdapter;
 	private ConnectThread mConnectThread;
 	private String mQueueAddress;
@@ -228,12 +220,12 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 				if (intent.hasExtra(AppWidgetManager.EXTRA_APPWIDGET_ID)) {
 					int appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
 					// check if the widget exists, otherwise add it
-					if (intent.hasExtra(TapLockService.EXTRA_DEVICE_NAME) && intent.hasExtra(TapLockService.EXTRA_DEVICE_ADDRESS)) {
+					if (intent.hasExtra(EXTRA_DEVICE_NAME) && intent.hasExtra(EXTRA_DEVICE_ADDRESS)) {
 						Set<String> newWidgets = new HashSet<String>();
 						for (String widget : widgets)
 							newWidgets.add(widget);
-						String name = intent.getStringExtra(TapLockService.EXTRA_DEVICE_NAME);
-						String address = intent.getStringExtra(TapLockService.EXTRA_DEVICE_ADDRESS);
+						String name = intent.getStringExtra(EXTRA_DEVICE_NAME);
+						String address = intent.getStringExtra(EXTRA_DEVICE_ADDRESS);
 						String widgetString = name + " " + Integer.toString(appWidgetId) + " " + address;
 						// store the widget
 						if (!newWidgets.contains(widgetString))
@@ -302,8 +294,8 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 
 	private RemoteViews buildWidget(Intent intent, int appWidgetId, Set<String> widgets) {
 		RemoteViews views = new RemoteViews(getPackageName(), R.layout.widget);
-		if (intent.hasExtra(TapLockService.EXTRA_DEVICE_NAME)) {
-			views.setTextViewText(R.id.device_name, intent.getStringExtra(TapLockService.EXTRA_DEVICE_NAME));
+		if (intent.hasExtra(EXTRA_DEVICE_NAME)) {
+			views.setTextViewText(R.id.device_name, intent.getStringExtra(EXTRA_DEVICE_NAME));
 		} else {
 			String name = getString(R.string.widget_device_name);
 			for (String widget : widgets) {
@@ -320,12 +312,8 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 			}
 			views.setTextViewText(R.id.device_name, name);
 		}
-		if (intent.hasExtra(TapLockService.EXTRA_DEVICE_STATE))
-			views.setTextViewText(R.id.device_state, intent.getStringExtra(TapLockService.EXTRA_DEVICE_STATE));
-		else
-			views.setTextViewText(R.id.device_state, getString(R.string.widget_device_state));
-		if (intent.hasExtra(TapLockService.EXTRA_DEVICE_ADDRESS))
-			views.setOnClickPendingIntent(R.id.widget, PendingIntent.getBroadcast(this, 0, new Intent(this, TapLockWidget.class).setAction(TapLockService.ACTION_TOGGLE).putExtra(TapLockService.EXTRA_DEVICE_ADDRESS, intent.getStringExtra(TapLockService.EXTRA_DEVICE_ADDRESS)), 0));
+		if (intent.hasExtra(EXTRA_DEVICE_ADDRESS))
+			views.setOnClickPendingIntent(R.id.widget, PendingIntent.getBroadcast(this, 0, TapLock.getPackageIntent(this, TapLockWidget.class).setAction(ACTION_TOGGLE).putExtra(EXTRA_DEVICE_ADDRESS, intent.getStringExtra(EXTRA_DEVICE_ADDRESS)), 0));
 		return views;
 	}
 

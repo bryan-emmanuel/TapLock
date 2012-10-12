@@ -19,7 +19,7 @@
  */
 package com.piusvelte.taplock.client.core;
 
-import static com.piusvelte.taplock.client.core.TapLockService.EXTRA_INFO;
+import static com.piusvelte.taplock.client.core.TapLock.EXTRA_INFO;
 
 import android.app.Activity;
 import android.content.Intent;

@@ -27,7 +27,7 @@ public class TapLockReceiver extends BroadcastReceiver {
 
 	@Override
 	public void onReceive(Context context, Intent intent) {
-		context.startService(intent.setClass(context, TapLockService.class));
+		context.startService(intent.setClass(context, TapLock.getPackageClass(context, TapLockService.class)));
 	}
 
 }

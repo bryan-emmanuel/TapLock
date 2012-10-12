@@ -19,19 +19,23 @@
  */
 package com.piusvelte.taplock.client.core;
 
-import static com.piusvelte.taplock.client.core.TapLockService.ACTION_LOCK;
-import static com.piusvelte.taplock.client.core.TapLockService.ACTION_PASSPHRASE;
-import static com.piusvelte.taplock.client.core.TapLockService.ACTION_REMOVE;
-import static com.piusvelte.taplock.client.core.TapLockService.ACTION_TAG;
-import static com.piusvelte.taplock.client.core.TapLockService.ACTION_TOGGLE;
-import static com.piusvelte.taplock.client.core.TapLockService.ACTION_UNLOCK;
-import static com.piusvelte.taplock.client.core.TapLockService.ACTION_DOWNLOAD_SDCARD;
-import static com.piusvelte.taplock.client.core.TapLockService.ACTION_DOWNLOAD_EMAIL;
-import static com.piusvelte.taplock.client.core.TapLockService.KEY_ADDRESS;
-import static com.piusvelte.taplock.client.core.TapLockService.KEY_NAME;
-import static com.piusvelte.taplock.client.core.TapLockService.KEY_PASSPHRASE;
-import static com.piusvelte.taplock.client.core.TapLockService.DEFAULT_PASSPHRASE;
-import static com.piusvelte.taplock.client.core.TapLockService.EXTRA_INFO;
+import static com.piusvelte.taplock.client.core.TapLock.PRO;
+import static com.piusvelte.taplock.client.core.TapLock.GOOGLE_AD_ID;
+import static com.piusvelte.taplock.client.core.TapLock.ACTION_LOCK;
+import static com.piusvelte.taplock.client.core.TapLock.ACTION_PASSPHRASE;
+import static com.piusvelte.taplock.client.core.TapLock.ACTION_REMOVE;
+import static com.piusvelte.taplock.client.core.TapLock.ACTION_TAG;
+import static com.piusvelte.taplock.client.core.TapLock.ACTION_TOGGLE;
+import static com.piusvelte.taplock.client.core.TapLock.ACTION_UNLOCK;
+import static com.piusvelte.taplock.client.core.TapLock.ACTION_DOWNLOAD_SDCARD;
+import static com.piusvelte.taplock.client.core.TapLock.ACTION_DOWNLOAD_EMAIL;
+import static com.piusvelte.taplock.client.core.TapLock.KEY_ADDRESS;
+import static com.piusvelte.taplock.client.core.TapLock.KEY_NAME;
+import static com.piusvelte.taplock.client.core.TapLock.KEY_PASSPHRASE;
+import static com.piusvelte.taplock.client.core.TapLock.DEFAULT_PASSPHRASE;
+import static com.piusvelte.taplock.client.core.TapLock.EXTRA_INFO;
+import static com.piusvelte.taplock.client.core.TapLock.EXTRA_DEVICE_NAME;
+import static com.piusvelte.taplock.client.core.TapLock.EXTRA_DEVICE_ADDRESS;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -41,11 +45,13 @@ import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
-
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import com.google.ads.*;
+
 import android.app.AlertDialog;
+
 import android.app.ListActivity;
 import android.app.PendingIntent;
 import android.app.ProgressDialog;
@@ -81,6 +87,7 @@ import android.view.View;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.AdapterView.AdapterContextMenuInfo;
 import android.widget.Toast;
@@ -190,6 +197,11 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.main);
 		registerForContextMenu(getListView());
+		if (!getPackageName().toLowerCase().contains(PRO)) {
+			AdView adView = new AdView(this, AdSize.BANNER, GOOGLE_AD_ID);
+			((LinearLayout) findViewById(R.id.ad)).addView(adView);
+			adView.loadAd(new AdRequest());
+		}
 		//NFC
 		mNfcAdapter = NfcAdapter.getDefaultAdapter(getApplicationContext());
 
@@ -208,9 +220,9 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 		if (mInWriteMode) {
 			if (intent != null) {
 				String action = intent.getAction();
-				if (mInWriteMode && NfcAdapter.ACTION_TAG_DISCOVERED.equals(action) && intent.hasExtra(TapLockService.EXTRA_DEVICE_NAME)) {
+				if (mInWriteMode && NfcAdapter.ACTION_TAG_DISCOVERED.equals(action) && intent.hasExtra(EXTRA_DEVICE_NAME)) {
 					Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
-					String name = intent.getStringExtra(TapLockService.EXTRA_DEVICE_NAME);
+					String name = intent.getStringExtra(EXTRA_DEVICE_NAME);
 					if ((tag != null) && (name != null)) {
 						// write the device and address
 						String lang = "en";
@@ -314,7 +326,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 								dialog.cancel();
 								TapLockSettings.this.finish();
 								try {
-									sendBroadcast(new Intent(TapLockSettings.this, TapLockWidget.class).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId).putExtra(TapLockService.EXTRA_DEVICE_NAME, deviceJObj.getString(KEY_NAME)).putExtra(TapLockService.EXTRA_DEVICE_ADDRESS, deviceJObj.getString(KEY_ADDRESS)));
+									sendBroadcast(TapLock.getPackageIntent(TapLockSettings.this, TapLockWidget.class).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId).putExtra(EXTRA_DEVICE_NAME, deviceJObj.getString(KEY_NAME)).putExtra(EXTRA_DEVICE_ADDRESS, deviceJObj.getString(KEY_ADDRESS)));
 								} catch (JSONException e) {
 									Log.e(TAG, e.toString());
 								}
@@ -326,12 +338,12 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 				}
 			}
 			// start the service before binding so that the service stays around for faster future connections
-			startService(new Intent(this, TapLockService.class));
-			bindService(new Intent(this, TapLockService.class), this, BIND_AUTO_CREATE);
+			startService(TapLock.getPackageIntent(this, TapLockService.class));
+			bindService(TapLock.getPackageIntent(this, TapLockService.class), this, BIND_AUTO_CREATE);
 
 			if (mShowTapLockSettingsInfo && (mDevices.size() == 0)) {
 				mShowTapLockSettingsInfo = false;
-				Intent i = new Intent(this, TapLockInfo.class);
+				Intent i = TapLock.getPackageIntent(this, TapLockInfo.class);
 				i.putExtra(EXTRA_INFO, getString(R.string.info_taplocksettings));
 				startActivity(i);
 			}
@@ -392,7 +404,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 					mInWriteMode = true;
 					try {
 						mNfcAdapter.enableForegroundDispatch(TapLockSettings.this,
-								PendingIntent.getActivity(TapLockSettings.this, 0, new Intent(TapLockSettings.this, TapLockSettings.this.getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra(TapLockService.EXTRA_DEVICE_NAME, deviceJObj.getString(KEY_NAME)), 0),
+								PendingIntent.getActivity(TapLockSettings.this, 0, new Intent(TapLockSettings.this, TapLockSettings.this.getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra(EXTRA_DEVICE_NAME, deviceJObj.getString(KEY_NAME)), 0),
 								new IntentFilter[] {new IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED)},
 								null);
 					} catch (JSONException e) {
@@ -465,7 +477,8 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 							else if (ACTION_DOWNLOAD_EMAIL.equals(action) && copyFileToSDCard(TAPLOCKSERVER)) {
 								Intent emailIntent = new Intent(android.content.Intent.ACTION_SEND);
 								emailIntent.setType("application/java-archive");
-								emailIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse("file://" + Environment.getExternalStorageDirectory().getPath() + TAPLOCKSERVER));
+								emailIntent.putExtra(Intent.EXTRA_SUBJECT, "Tap Lock Server");
+								emailIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse("file://" + Environment.getExternalStorageDirectory().getPath() + "/" + TAPLOCKSERVER));
 								startActivity(Intent.createChooser(emailIntent, "E-Mail TapLockServer.jar"));
 							}
 						}
@@ -667,7 +680,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 		// setPassphrase(mDevices.size() - 1);
 		if (mDevices.size() == 1) {
 			// first device added
-			Intent i = new Intent(TapLockSettings.this, TapLockInfo.class);
+			Intent i = TapLock.getPackageIntent(TapLockSettings.this, TapLockInfo.class);
 			i.putExtra(EXTRA_INFO, getString(R.string.info_newdevice));
 			startActivity(i);
 		}

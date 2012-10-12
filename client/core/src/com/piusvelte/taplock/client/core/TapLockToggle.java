@@ -19,9 +19,9 @@
  */
 package com.piusvelte.taplock.client.core;
 
-import static com.piusvelte.taplock.client.core.TapLockService.ACTION_TOGGLE;
-import static com.piusvelte.taplock.client.core.TapLockService.KEY_ADDRESS;
-import static com.piusvelte.taplock.client.core.TapLockService.KEY_NAME;
+import static com.piusvelte.taplock.client.core.TapLock.ACTION_TOGGLE;
+import static com.piusvelte.taplock.client.core.TapLock.KEY_ADDRESS;
+import static com.piusvelte.taplock.client.core.TapLock.KEY_NAME;
 
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
@@ -132,8 +132,8 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 			}
 		}
 		// start the service before binding so that the service stays around for faster future connections
-		startService(new Intent(this, TapLockService.class));
-		bindService(new Intent(this, TapLockService.class), this, BIND_AUTO_CREATE);
+		startService(TapLock.getPackageIntent(this, TapLockService.class));
+		bindService(TapLock.getPackageIntent(this, TapLockService.class), this, BIND_AUTO_CREATE);
 	}
 
 	@Override

@@ -29,6 +29,7 @@ import static com.piusvelte.taplock.client.core.TapLock.ACTION_TOGGLE;
 import static com.piusvelte.taplock.client.core.TapLock.ACTION_UNLOCK;
 import static com.piusvelte.taplock.client.core.TapLock.ACTION_DOWNLOAD_SDCARD;
 import static com.piusvelte.taplock.client.core.TapLock.ACTION_DOWNLOAD_EMAIL;
+import static com.piusvelte.taplock.client.core.TapLock.ACTION_COPY_DEVICE_URI;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_ADDRESS;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_NAME;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_PASSPHRASE;
@@ -58,6 +59,8 @@ import android.app.ProgressDialog;
 import android.appwidget.AppWidgetManager;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -417,6 +420,18 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 					setListAdapter(new ArrayAdapter<String>(TapLockSettings.this, android.R.layout.simple_list_item_1, deviceNames));
 				} else if (ACTION_PASSPHRASE.equals(action))
 					setPassphrase(deviceIdx);
+				else if (ACTION_COPY_DEVICE_URI.equals(action)) {
+					ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+					ClipData clip;
+					try {
+						clip = ClipData.newPlainText(getString(R.string.app_name), String.format(getString(R.string.device_uri), deviceJObj.get(EXTRA_DEVICE_NAME)));
+						clipboard.setPrimaryClip(clip);
+						Toast.makeText(TapLockSettings.this, "copied to clipboard!", Toast.LENGTH_SHORT).show();
+					} catch (JSONException e) {
+						Log.e(TAG, e.getMessage());
+						Toast.makeText(TapLockSettings.this, getString(R.string.msg_oops), Toast.LENGTH_SHORT).show();
+					}
+				}
 			}
 		})
 		.create();
@@ -477,9 +492,10 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 							else if (ACTION_DOWNLOAD_EMAIL.equals(action) && copyFileToSDCard(TAPLOCKSERVER)) {
 								Intent emailIntent = new Intent(android.content.Intent.ACTION_SEND);
 								emailIntent.setType("application/java-archive");
-								emailIntent.putExtra(Intent.EXTRA_SUBJECT, "Tap Lock Server");
+								emailIntent.putExtra(Intent.EXTRA_TEXT, getString(R.string.email_instructions));
+								emailIntent.putExtra(Intent.EXTRA_SUBJECT, getString(R.string.app_name));
 								emailIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse("file://" + Environment.getExternalStorageDirectory().getPath() + "/" + TAPLOCKSERVER));
-								startActivity(Intent.createChooser(emailIntent, "E-Mail TapLockServer.jar"));
+								startActivity(Intent.createChooser(emailIntent, getString(R.string.button_getserver)));
 							}
 						}
 

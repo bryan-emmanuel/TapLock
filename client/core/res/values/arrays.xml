@@ -26,6 +26,7 @@
 		<item>write NFC tag</item>
 		<item>remove</item>
 		<item>change passphrase</item>
+		<item>copy URI to clipboard for use with other apps</item>
 	</string-array>
 	<string-array name="actions_values">
 		<item>com.piusvelte.taplock.ACTION_UNLOCK</item>
@@ -34,6 +35,7 @@
 		<item>com.piusvelte.taplock.ACTION_TAG</item>
 		<item>com.piusvelte.taplock.ACTION_REMOVE</item>
 		<item>com.piusvelte.taplock.ACTION_PASSPHRASE</item>
+		<item>com.piusvelte.taplock.ACTION_COPY_DEVICE_URI</item>
 	</string-array>
 	<string-array name="download_entries">
 	    <item>Copy the TapLockServer.jar to the sdcard</item>

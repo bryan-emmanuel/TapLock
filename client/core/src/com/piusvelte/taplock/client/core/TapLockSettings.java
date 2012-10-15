@@ -254,8 +254,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection {
 								NdefRecord.RTD_TEXT, 
 								new byte[0], 
 								payload);
-						NdefMessage message = new NdefMessage(new NdefRecord[]{record, NdefRecord.createApplicationRecord("com.piusvelte.taplock.*")});
-
+						NdefMessage message = new NdefMessage(new NdefRecord[]{record, NdefRecord.createApplicationRecord(getPackageName())});
 						// Get an instance of Ndef for the tag.
 						Ndef ndef = Ndef.get(tag);
 						if (ndef != null) {

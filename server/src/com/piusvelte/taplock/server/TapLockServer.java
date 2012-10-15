@@ -19,6 +19,20 @@
  */
 package com.piusvelte.taplock.server;
 
+import java.awt.AWTException;
+import java.awt.CheckboxMenuItem;
+import java.awt.Image;
+import java.awt.MenuItem;
+import java.awt.PopupMenu;
+import java.awt.Robot;
+import java.awt.SystemTray;
+import java.awt.Toolkit;
+import java.awt.TrayIcon;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.awt.event.KeyEvent;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -35,6 +49,8 @@ import java.util.Scanner;
 import java.util.logging.FileHandler;
 import java.util.logging.Logger;
 import java.util.logging.SimpleFormatter;
+
+import javax.swing.JOptionPane;
 
 import org.apache.commons.daemon.Daemon;
 import org.apache.commons.daemon.DaemonContext;
@@ -57,11 +73,14 @@ public class TapLockServer implements Daemon {
 	protected static int sState = STATE_UNLOCKED;
 
 	protected static final String sPassphraseKey = "passphrase";
+	protected static final String sDisplaySystemTrayKey = "displaysystemtray";
 	protected static String sPassphrase = "TapLock";
+	protected static boolean sDisplaySystemTray = true;
 	protected static String sProperties = "taplock.properties";
 	protected static String sLog = "taplock.log";
 	protected static FileHandler sLogFileHandler;
 	protected static Logger sLogger;
+	protected static Scanner sScanner;
 
 	private static ConnectionThread sConnectionThread = null;
 	private static int[] sConnectionThreadLock = new int[0];
@@ -100,12 +119,26 @@ public class TapLockServer implements Daemon {
 
 		if ("start".equals(cmd)) {
 			initialize();
-			Scanner sc = new Scanner(System.in);
+			sScanner = new Scanner(System.in);
 			System.out.printf("Enter 'stop' to halt: ");
-			while(!sc.nextLine().equals("stop") && !isShutdown());
+			String nextLine = null;
+			try {
+				nextLine = sScanner.nextLine();
+			} catch (IllegalStateException e) {
+				e.printStackTrace();
+			}
+			while(!"stop".equals(nextLine) && !isShutdown()) {
+				writeLog("nextLine: " + nextLine);
+				try {
+					nextLine = sScanner.nextLine();
+				} catch (IllegalStateException e) {
+					e.printStackTrace();
+				}
+			}
 			shutdown();
 		} else
 			shutdown();
+		System.exit(0);
 	}
 
 	private static void initialize() {
@@ -133,9 +166,18 @@ public class TapLockServer implements Daemon {
 			prop.load(new FileInputStream(sProperties));
 			if (prop.isEmpty()) {
 				prop.setProperty(sPassphraseKey, sPassphrase);
+				prop.setProperty(sDisplaySystemTrayKey, Boolean.toString(sDisplaySystemTray));
 				prop.store(new FileOutputStream(sProperties), null);
-			} else
-				sPassphrase = prop.getProperty(sPassphraseKey);
+			} else {
+				if (prop.containsKey(sPassphraseKey))
+					sPassphrase = prop.getProperty(sPassphraseKey);
+				else
+					prop.setProperty(sPassphraseKey, sPassphrase);
+				if (prop.containsKey(sDisplaySystemTrayKey))
+					sDisplaySystemTray = Boolean.parseBoolean(prop.getProperty(sDisplaySystemTrayKey));
+				else
+					prop.setProperty(sDisplaySystemTrayKey, Boolean.toString(sDisplaySystemTray));
+			}
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
@@ -150,11 +192,81 @@ public class TapLockServer implements Daemon {
 			sLogFileHandler.setFormatter(sf);
 			writeLog("service starting");
 		}
+		
+		if (sDisplaySystemTray && SystemTray.isSupported()) {
+			final SystemTray systemTray = SystemTray.getSystemTray();
+			Image trayIconImg = Toolkit.getDefaultToolkit().getImage(TapLockServer.class.getResource("/systemtrayicon.png"));
+			final TrayIcon trayIcon = new TrayIcon(trayIconImg, "Tap Lock");
+			trayIcon.setImageAutoSize(true);
+			PopupMenu popupMenu = new PopupMenu();
+			MenuItem aboutItem = new MenuItem("About");
+			CheckboxMenuItem toggleSystemTrayIcon = new CheckboxMenuItem("Display Icon in System Tray");
+			toggleSystemTrayIcon.setState(sDisplaySystemTray);
+			MenuItem shutdownItem = new MenuItem("Shutdown Tap Lock Server");
+			popupMenu.add(aboutItem);
+			popupMenu.add(toggleSystemTrayIcon);
+			popupMenu.add(shutdownItem);
+			trayIcon.setPopupMenu(popupMenu);
+			try {
+				systemTray.add(trayIcon);
+			} catch (AWTException e) {
+				writeLog(e.getMessage());
+			}
+			aboutItem.addActionListener(new ActionListener() {
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					String newline = System.getProperty("line.separator");
+					newline += newline;
+					JOptionPane.showMessageDialog(null, "Tap Lock" + newline + "Copyright (c) 2012 Bryan Emmanuel" + newline + "This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version." + newline + "This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details." + newline + "You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>." + newline + "Bryan Emmanuel piusvelte@gmail.com");
+				}
+			});
+			toggleSystemTrayIcon.addItemListener(new ItemListener() {
+				@Override
+				public void itemStateChanged(ItemEvent e) {
+					setTrayIconDisplay(e.getStateChange() == ItemEvent.SELECTED);
+					if (!sDisplaySystemTray)
+						systemTray.remove(trayIcon);
+				}
+			});
+			shutdownItem.addActionListener(new ActionListener() {
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					try {
+						Robot robot = new Robot();
+						robot.keyPress(KeyEvent.VK_S);
+						robot.keyRelease(KeyEvent.VK_S);
+						robot.keyPress(KeyEvent.VK_T);
+						robot.keyRelease(KeyEvent.VK_T);
+						robot.keyPress(KeyEvent.VK_O);
+						robot.keyRelease(KeyEvent.VK_O);
+						robot.keyPress(KeyEvent.VK_P);
+						robot.keyRelease(KeyEvent.VK_P);
+						robot.keyPress(KeyEvent.VK_ENTER);
+						robot.keyRelease(KeyEvent.VK_ENTER);
+					} catch (AWTException e1) {
+						e1.printStackTrace();
+					}
+				}
+			});
+		}
 
 		synchronized (sConnectionThreadLock) {
 			(sConnectionThread = new ConnectionThread()).start();
 		}
-
+	}
+	
+	protected static void setTrayIconDisplay(boolean display) {
+		sDisplaySystemTray = display;
+		Properties prop = new Properties();
+		try {
+			prop.load(new FileInputStream(sProperties));
+			prop.setProperty(sDisplaySystemTrayKey, Boolean.toString(sDisplaySystemTray));
+			prop.store(new FileOutputStream(sProperties), null);
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 	protected static void setPassphrase(String passphrase) {
@@ -267,11 +379,16 @@ public class TapLockServer implements Daemon {
 	}
 
 	public static void shutdown() {
+		sScanner.close();
 		synchronized (sConnectionThreadLock) {
 			if (sConnectionThread != null) {
 				sConnectionThread.shutdown();
 				sConnectionThread = null;
 			}
 		}
+		if (sLogger != null)
+			sLogger = null;
+		if (sLogFileHandler != null)
+			sLogFileHandler.close();
 	}
 }

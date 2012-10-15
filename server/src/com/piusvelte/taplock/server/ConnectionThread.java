@@ -72,6 +72,7 @@ public class ConnectionThread extends Thread {
 				connection = notifier.acceptAndOpen();
 			} catch (IOException e) {
 				e.printStackTrace();
+				connection = null;
 			}
 			if (connection != null) {
 				TapLockServer.writeLog("new connection...");
@@ -231,6 +232,14 @@ public class ConnectionThread extends Thread {
 	}
 
 	public void shutdown() {
+		if (notifier != null) {
+			try {
+				notifier.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			notifier = null;
+		}
 		if (inStream != null) {
 			try {
 				inStream.close();
@@ -253,13 +262,7 @@ public class ConnectionThread extends Thread {
 			}
 			connection = null;
 		}
-		if (notifier != null) {
-			try {
-				notifier.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-			notifier = null;
-		}
+		if (local != null)
+			local = null;
 	}
 }

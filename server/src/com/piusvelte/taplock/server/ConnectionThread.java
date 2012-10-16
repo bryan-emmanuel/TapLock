@@ -53,6 +53,7 @@ public class ConnectionThread extends Thread {
 	@SuppressWarnings("unchecked")
 	@Override
 	public void run() {
+		TapLockServer.writeLog("ConnectionThread started");
 		// retrieve the local Bluetooth device object
 		// setup the server to listen for connection
 		try {
@@ -62,7 +63,7 @@ public class ConnectionThread extends Thread {
 			String url = "btspp://localhost:" + sTapLockUUID.toString() + ";name=" + sSPD;
 			notifier = (StreamConnectionNotifier) Connector.open(url);
 		} catch (Exception e) {
-			e.printStackTrace();
+			TapLockServer.writeLog("notifier init: " + e.getMessage());
 			return;
 		}
 		JSONParser jsonParser = new JSONParser();
@@ -71,7 +72,7 @@ public class ConnectionThread extends Thread {
 			try {
 				connection = notifier.acceptAndOpen();
 			} catch (IOException e) {
-				e.printStackTrace();
+				TapLockServer.writeLog("notifier.acceptAndOpen: " + e.getMessage());
 				connection = null;
 			}
 			if (connection != null) {
@@ -80,7 +81,7 @@ public class ConnectionThread extends Thread {
 					inStream = connection.openInputStream();
 					outStream = connection.openOutputStream();
 				} catch (IOException e) {
-					e.printStackTrace();
+					TapLockServer.writeLog("inStream and outStream open: " + e.getMessage());
 				}
 				if ((inStream != null) && (outStream != null)) {
 					// send the challenge
@@ -91,8 +92,8 @@ public class ConnectionThread extends Thread {
 					String responseStr = responseJObj.toJSONString();
 					try {
 						outStream.write(responseStr.getBytes());
-					} catch (IOException e1) {
-						e1.printStackTrace();
+					} catch (IOException e) {
+						TapLockServer.writeLog("outStream.write: " + e.getMessage());
 					}
 					// prepare to receive data
 					byte[] buffer = new byte[1024];
@@ -100,7 +101,7 @@ public class ConnectionThread extends Thread {
 					try {
 						readBytes = inStream.read(buffer);
 					} catch (IOException e) {
-						TapLockServer.writeLog(e.getMessage());
+						TapLockServer.writeLog("inStream.read: " + e.getMessage());
 					}
 					while (readBytes != -1) {
 						responseJObj.clear();
@@ -110,7 +111,7 @@ public class ConnectionThread extends Thread {
 						try {
 							requestJObj = (JSONObject) jsonParser.parse(requestStr);
 						} catch (ParseException e) {
-							TapLockServer.writeLog(e.getMessage());
+							TapLockServer.writeLog("jsonParser.parse: " + e.getMessage());
 						}
 						if (requestJObj != null) {
 							if ((requestJObj != null) && requestJObj.containsKey(TapLockServer.PARAM_ACTION) && requestJObj.containsKey(TapLockServer.PARAM_HMAC)) {
@@ -124,9 +125,9 @@ public class ConnectionThread extends Thread {
 								try {
 									validHMAC = TapLockServer.getHashString(challenge + TapLockServer.sPassphrase + requestAction + requestPassphrase);
 								} catch (NoSuchAlgorithmException e) {
-									TapLockServer.writeLog(e.getMessage());
+									TapLockServer.writeLog("getHashString: " + e.getMessage());
 								} catch (UnsupportedEncodingException e) {
-									TapLockServer.writeLog(e.getMessage());
+									TapLockServer.writeLog("getHashString: " + e.getMessage());
 								}
 								if (requestHMAC.equals(validHMAC)) {
 									if (TapLockServer.ACTION_PASSPHRASE.equals(requestAction))
@@ -143,15 +144,16 @@ public class ConnectionThread extends Thread {
 										} else if (TapLockServer.ACTION_UNLOCK.equals(requestAction)) {
 											if (TapLockServer.OS == TapLockServer.OS_NIX)
 												command = "gnome-screensaver-command -d";
-											else if (TapLockServer.OS == TapLockServer.OS_WIN)
-												command = "rundll32.exe user32.dll, UnLockWorkStation";
+//											else if (TapLockServer.OS == TapLockServer.OS_WIN)
+//												command = "rundll32.exe user32.dll, UnLockWorkStation";
 										}
 										if (command != null) {
+											TapLockServer.writeLog("command: " + command);
 											Process p = null;
 											try {
 												p = Runtime.getRuntime().exec(command);
 											} catch (IOException e) {
-												TapLockServer.writeLog(e.getMessage());
+												TapLockServer.writeLog("Runtime.getRuntime().exec: " + e.getMessage());
 											}
 											if (p != null) {
 												BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream())); 
@@ -159,14 +161,14 @@ public class ConnectionThread extends Thread {
 												try {
 													line = reader.readLine();
 												} catch (IOException e) {
-													TapLockServer.writeLog(e.getMessage());
+													TapLockServer.writeLog("reader.readLine: " + e.getMessage());
 												} 
 												while (line != null) { 
 													TapLockServer.writeLog(line);
 													try {
 														line = reader.readLine();
 													} catch (IOException e) {
-														TapLockServer.writeLog(e.getMessage());
+														TapLockServer.writeLog("reader.readLine: " + e.getMessage());
 													} 
 												}
 												if (TapLockServer.ACTION_LOCK.equals(requestAction))
@@ -195,27 +197,27 @@ public class ConnectionThread extends Thread {
 						responseStr = responseJObj.toJSONString();
 						try {
 							outStream.write(responseStr.getBytes());
-						} catch (IOException e1) {
-							e1.printStackTrace();
+						} catch (IOException e) {
+							TapLockServer.writeLog("outStream.write: " + e.getMessage());
 						}
 						try {
 							readBytes = inStream.read(buffer);
 						} catch (IOException e) {
-							TapLockServer.writeLog(e.getMessage());
+							TapLockServer.writeLog("inStream.read: " + e.getMessage());
 						}
 					}
 					if (inStream != null) {
 						try {
 							inStream.close();
 						} catch (IOException e) {
-							e.printStackTrace();
+							TapLockServer.writeLog("inStream.close: " + e.getMessage());
 						}
 					}
 					if (outStream != null) {
 						try {
 							outStream.close();
 						} catch (IOException e) {
-							e.printStackTrace();
+							TapLockServer.writeLog("outStream.close: " + e.getMessage());
 						}
 					}
 				}
@@ -223,7 +225,7 @@ public class ConnectionThread extends Thread {
 					try {
 						connection.close();
 					} catch (IOException e) {
-						e.printStackTrace();
+						TapLockServer.writeLog("connection.close: " + e.getMessage());
 					}
 					connection = null;
 				}
@@ -236,7 +238,7 @@ public class ConnectionThread extends Thread {
 			try {
 				notifier.close();
 			} catch (IOException e) {
-				e.printStackTrace();
+				TapLockServer.writeLog("notifier.close: " + e.getMessage());
 			}
 			notifier = null;
 		}
@@ -244,21 +246,21 @@ public class ConnectionThread extends Thread {
 			try {
 				inStream.close();
 			} catch (IOException e) {
-				e.printStackTrace();
+				TapLockServer.writeLog("inStream.close: " + e.getMessage());
 			}
 		}
 		if (outStream != null) {
 			try {
 				outStream.close();
 			} catch (IOException e) {
-				e.printStackTrace();
+				TapLockServer.writeLog("outStream.close: " + e.getMessage());
 			}
 		}
 		if (connection != null) {
 			try {
 				connection.close();
 			} catch (IOException e) {
-				e.printStackTrace();
+				TapLockServer.writeLog("connection.close: " + e.getMessage());
 			}
 			connection = null;
 		}

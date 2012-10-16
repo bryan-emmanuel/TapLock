@@ -74,8 +74,10 @@ public class TapLockServer implements Daemon {
 
 	protected static final String sPassphraseKey = "passphrase";
 	protected static final String sDisplaySystemTrayKey = "displaysystemtray";
+	protected static final String sDebuggingKey = "debugging";
 	protected static String sPassphrase = "TapLock";
 	protected static boolean sDisplaySystemTray = true;
+	protected static boolean sDebugging = false;
 	protected static String sProperties = "taplock.properties";
 	protected static String sLog = "taplock.log";
 	protected static FileHandler sLogFileHandler;
@@ -102,7 +104,7 @@ public class TapLockServer implements Daemon {
 				cmd = "start";
 		} else
 			cmd = "start";
-		
+
 		String path = TapLockServer.class.getProtectionDomain().getCodeSource().getLocation().getPath();
 		try {
 			String decodedPath = URLDecoder.decode(path, "UTF-8");
@@ -114,27 +116,14 @@ public class TapLockServer implements Daemon {
 			sProperties = decodedPath + sProperties;
 			sLog = decodedPath + sLog;
 		} catch (UnsupportedEncodingException e) {
-			e.printStackTrace();
+			writeLog("URLDecoder.decode: " + e.getMessage());
 		}
 
 		if ("start".equals(cmd)) {
 			initialize();
 			sScanner = new Scanner(System.in);
 			System.out.printf("Enter 'stop' to halt: ");
-			String nextLine = null;
-			try {
-				nextLine = sScanner.nextLine();
-			} catch (IllegalStateException e) {
-				e.printStackTrace();
-			}
-			while(!"stop".equals(nextLine) && !isShutdown()) {
-				writeLog("nextLine: " + nextLine);
-				try {
-					nextLine = sScanner.nextLine();
-				} catch (IllegalStateException e) {
-					e.printStackTrace();
-				}
-			}
+			while(!"stop".equals(sScanner.nextLine()) && !isShutdown());
 			shutdown();
 		} else
 			shutdown();
@@ -142,13 +131,13 @@ public class TapLockServer implements Daemon {
 	}
 
 	private static void initialize() {
-		
+
 		try {
 			sLogFileHandler = new FileHandler(sLog);
 		} catch (SecurityException e) {
-			e.printStackTrace();
+			writeLog("sLogFileHandler init: " + e.getMessage());
 		} catch (IOException e) {
-			e.printStackTrace();
+			writeLog("sLogFileHandler init: " + e.getMessage());
 		}
 
 		File propertiesFile = new File(sProperties);
@@ -156,7 +145,7 @@ public class TapLockServer implements Daemon {
 			try {
 				propertiesFile.createNewFile();
 			} catch (IOException e) {
-				e.printStackTrace();
+				writeLog("propertiesFile.createNewFile: " + e.getMessage());
 			}
 		}
 
@@ -167,6 +156,7 @@ public class TapLockServer implements Daemon {
 			if (prop.isEmpty()) {
 				prop.setProperty(sPassphraseKey, sPassphrase);
 				prop.setProperty(sDisplaySystemTrayKey, Boolean.toString(sDisplaySystemTray));
+				prop.setProperty(sDebuggingKey, Boolean.toString(sDebugging));
 				prop.store(new FileOutputStream(sProperties), null);
 			} else {
 				if (prop.containsKey(sPassphraseKey))
@@ -177,11 +167,15 @@ public class TapLockServer implements Daemon {
 					sDisplaySystemTray = Boolean.parseBoolean(prop.getProperty(sDisplaySystemTrayKey));
 				else
 					prop.setProperty(sDisplaySystemTrayKey, Boolean.toString(sDisplaySystemTray));
+				if (prop.containsKey(sDebuggingKey))
+					sDebugging = Boolean.parseBoolean(prop.getProperty(sDebuggingKey));
+				else
+					prop.setProperty(sDebuggingKey, Boolean.toString(sDebugging));
 			}
 		} catch (FileNotFoundException e) {
-			e.printStackTrace();
+			writeLog("prop load: " + e.getMessage());
 		} catch (IOException e) {
-			e.printStackTrace();
+			writeLog("prop load: " + e.getMessage());
 		}
 
 		if (sLogFileHandler != null) {
@@ -192,7 +186,7 @@ public class TapLockServer implements Daemon {
 			sLogFileHandler.setFormatter(sf);
 			writeLog("service starting");
 		}
-		
+
 		if (sDisplaySystemTray && SystemTray.isSupported()) {
 			final SystemTray systemTray = SystemTray.getSystemTray();
 			Image trayIconImg = Toolkit.getDefaultToolkit().getImage(TapLockServer.class.getResource("/systemtrayicon.png"));
@@ -202,15 +196,18 @@ public class TapLockServer implements Daemon {
 			MenuItem aboutItem = new MenuItem("About");
 			CheckboxMenuItem toggleSystemTrayIcon = new CheckboxMenuItem("Display Icon in System Tray");
 			toggleSystemTrayIcon.setState(sDisplaySystemTray);
+			CheckboxMenuItem toggleDebugging = new CheckboxMenuItem("Debugging");
+			toggleDebugging.setState(sDebugging);
 			MenuItem shutdownItem = new MenuItem("Shutdown Tap Lock Server");
 			popupMenu.add(aboutItem);
 			popupMenu.add(toggleSystemTrayIcon);
+			popupMenu.add(toggleDebugging);
 			popupMenu.add(shutdownItem);
 			trayIcon.setPopupMenu(popupMenu);
 			try {
 				systemTray.add(trayIcon);
 			} catch (AWTException e) {
-				writeLog(e.getMessage());
+				writeLog("systemTray.add: " + e.getMessage());
 			}
 			aboutItem.addActionListener(new ActionListener() {
 				@Override
@@ -226,6 +223,12 @@ public class TapLockServer implements Daemon {
 					setTrayIconDisplay(e.getStateChange() == ItemEvent.SELECTED);
 					if (!sDisplaySystemTray)
 						systemTray.remove(trayIcon);
+				}
+			});
+			toggleDebugging.addItemListener(new ItemListener() {
+				@Override
+				public void itemStateChanged(ItemEvent e) {
+					setDebugging(e.getStateChange() == ItemEvent.SELECTED);
 				}
 			});
 			shutdownItem.addActionListener(new ActionListener() {
@@ -244,7 +247,7 @@ public class TapLockServer implements Daemon {
 						robot.keyPress(KeyEvent.VK_ENTER);
 						robot.keyRelease(KeyEvent.VK_ENTER);
 					} catch (AWTException e1) {
-						e1.printStackTrace();
+						writeLog("robot: " + e1.getMessage());
 					}
 				}
 			});
@@ -254,7 +257,7 @@ public class TapLockServer implements Daemon {
 			(sConnectionThread = new ConnectionThread()).start();
 		}
 	}
-	
+
 	protected static void setTrayIconDisplay(boolean display) {
 		sDisplaySystemTray = display;
 		Properties prop = new Properties();
@@ -263,24 +266,37 @@ public class TapLockServer implements Daemon {
 			prop.setProperty(sDisplaySystemTrayKey, Boolean.toString(sDisplaySystemTray));
 			prop.store(new FileOutputStream(sProperties), null);
 		} catch (FileNotFoundException e) {
-			e.printStackTrace();
+			writeLog("prop load: " + e.getMessage());
 		} catch (IOException e) {
-			e.printStackTrace();
+			writeLog("prop load: " + e.getMessage());
+		}
+	}
+
+	protected static void setDebugging(boolean debugging) {
+		sDebugging = debugging;
+		Properties prop = new Properties();
+		try {
+			prop.load(new FileInputStream(sProperties));
+			prop.setProperty(sDebuggingKey, Boolean.toString(sDebugging));
+			prop.store(new FileOutputStream(sProperties), null);
+		} catch (FileNotFoundException e) {
+			writeLog("prop load: " + e.getMessage());
+		} catch (IOException e) {
+			writeLog("prop load: " + e.getMessage());
 		}
 	}
 
 	protected static void setPassphrase(String passphrase) {
 		sPassphrase = passphrase;
 		Properties prop = new Properties();
-
 		try {
 			prop.load(new FileInputStream(sProperties));
 			prop.setProperty(sPassphraseKey, sPassphrase);
 			prop.store(new FileOutputStream(sProperties), null);
 		} catch (FileNotFoundException e) {
-			e.printStackTrace();
+			writeLog("prop load: " + e.getMessage());
 		} catch (IOException e) {
-			e.printStackTrace();
+			writeLog("prop load: " + e.getMessage());
 		}
 	}
 
@@ -290,13 +306,13 @@ public class TapLockServer implements Daemon {
 			command = "gnome-screensaver-command -q";
 		else if (OS == OS_WIN)
 			return ((sState == STATE_LOCKED) ? ACTION_UNLOCK : ACTION_LOCK);
-//			command = "rundll32.exe user32.dll, UnLockWorkStation";
+		//			command = "rundll32.exe user32.dll, UnLockWorkStation";
 		if (command != null) {
 			Process p = null;
 			try {
 				p = Runtime.getRuntime().exec(command);
 			} catch (IOException e) {
-				System.out.println(e.toString());
+				writeLog("Runtime.getRuntime().exec: " + e.getMessage());
 			}
 			if (p != null) {
 				BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream())); 
@@ -304,7 +320,7 @@ public class TapLockServer implements Daemon {
 				try {
 					line = reader.readLine();
 				} catch (IOException e) {
-					System.out.println(e.toString());
+					writeLog("reader.readLine: " + e.getMessage());
 				} 
 				while(line != null) 
 				{ 
@@ -316,7 +332,7 @@ public class TapLockServer implements Daemon {
 					try {
 						line = reader.readLine();
 					} catch (IOException e) {
-						System.out.println(e.toString());
+						writeLog("reader.readLine: " + e.getMessage());
 					} 
 				}
 				return ACTION_UNLOCK;
@@ -327,7 +343,7 @@ public class TapLockServer implements Daemon {
 
 	protected static void writeLog(String message) {
 		System.out.println(message);
-		if ((sLogFileHandler != null) && (sLogger != null)) {
+		if (sDebugging && (sLogFileHandler != null) && (sLogger != null)) {
 			sLogger.info(message);
 		}
 	}

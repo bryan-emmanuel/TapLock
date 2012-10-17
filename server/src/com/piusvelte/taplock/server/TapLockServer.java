@@ -273,7 +273,11 @@ public class TapLockServer implements Daemon {
 	}
 
 	protected static void setDebugging(boolean debugging) {
+		if (sDebugging)
+			writeLog("debugging stopped");
 		sDebugging = debugging;
+		if (sDebugging)
+			writeLog("debugging started");
 		Properties prop = new Properties();
 		try {
 			prop.load(new FileInputStream(sProperties));
@@ -342,7 +346,6 @@ public class TapLockServer implements Daemon {
 	}
 
 	protected static void writeLog(String message) {
-		System.out.println(message);
 		if (sDebugging && (sLogFileHandler != null) && (sLogger != null)) {
 			sLogger.info(message);
 		}

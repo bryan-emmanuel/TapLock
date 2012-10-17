@@ -5,4 +5,4 @@
   android:minHeight="40dip"
   android:updatePeriodMillis="0"
   android:initialLayout="@layout/widget"
-  android:configure="com.piusvelte.taplock.client.TapLockSettings" />
+  android:configure="com.piusvelte.taplock.client.adsupported.TapLockSettings" />

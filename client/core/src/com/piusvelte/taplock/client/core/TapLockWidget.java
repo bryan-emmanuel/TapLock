@@ -19,14 +19,10 @@
  */
 package com.piusvelte.taplock.client.core;
 
-import static com.piusvelte.taplock.client.core.TapLock.ACTION_TOGGLE;
-import static com.piusvelte.taplock.client.core.TapLock.EXTRA_DEVICE_ADDRESS;
-
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
 import android.content.Context;
 import android.content.Intent;
-import android.util.Log;
 
 public class TapLockWidget extends AppWidgetProvider {
 	private static final String TAG = "TapLockWidget";
@@ -34,13 +30,9 @@ public class TapLockWidget extends AppWidgetProvider {
 	@Override
 	public void onReceive(Context context, Intent intent) {
 		String action = intent.getAction();
-		Log.d(TAG, "action: " + action);
 		if (action.equals(AppWidgetManager.ACTION_APPWIDGET_UPDATE))
 			context.startService(intent.setClass(context, TapLock.getPackageClass(context, TapLockService.class)));
-		else if (action.equals(ACTION_TOGGLE)) {
-			if (intent.hasExtra(EXTRA_DEVICE_ADDRESS))
-				context.startService(intent.setClass(context, TapLock.getPackageClass(context, TapLockService.class)));
-		} else if (action.equals(AppWidgetManager.ACTION_APPWIDGET_DELETED))
+		else if (action.equals(AppWidgetManager.ACTION_APPWIDGET_DELETED))
 			context.startService(intent.setClass(context, TapLock.getPackageClass(context, TapLockService.class)));
 		else
 			super.onReceive(context, intent);

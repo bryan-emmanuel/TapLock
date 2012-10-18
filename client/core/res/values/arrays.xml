@@ -45,4 +45,10 @@
 	    <item>com.piusvelte.taplock.ACTION_DOWNLOAD_SDCARD</item>
 	    <item>com.piusvelte.taplock.ACTION_DOWNLOAD_EMAIL</item>
 	</string-array>
+	<string-array name="connection_messages">
+	    <item>...on the desk...</item>
+	    <item>...on the table...</item>
+	    <item>...on the floor...</item>
+	    <item>...on the sofa...</item>
+	</string-array>
 </resources>

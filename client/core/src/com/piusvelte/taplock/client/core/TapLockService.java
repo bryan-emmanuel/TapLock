@@ -384,120 +384,123 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 		}
 
 		public void run() {
-			boolean pass = false;
-			mBtAdapter.cancelDiscovery();
-			BluetoothDevice device = mBtAdapter.getRemoteDevice(mAddress);
-			mHandler.post(new MessageSetter("connecting..."));
-			int connectionAttempt;
-			for (connectionAttempt = 0; connectionAttempt < MAX_CONNECTION_ATTEMPTS; connectionAttempt++) {
+
+			String passphrase = null;
+			String name = "device";
+			for (JSONObject deviceJObj : mDevices) {
 				try {
-					mSocket = device.createRfcommSocketToServiceRecord(sTapLockUUID);
-					mSocket.connect();
-				} catch (IOException e) {
-					mSocket = null;
+					if (deviceJObj.getString(KEY_ADDRESS).equals(mAddress)) {
+						passphrase = deviceJObj.getString(KEY_PASSPHRASE);
+						name = deviceJObj.getString(KEY_NAME);
+					}
+				} catch (JSONException e) {
+					Log.e(TAG, e.getMessage());
 				}
-				if (mSocket != null) {
-					if (mAction == null)
-						mHandler.post(new PairingResultSetter(device.getName(), mAddress));
-					else {
-						// Get the BluetoothSocket input and output streams
-						try {
-							inStream = mSocket.getInputStream();
-							outStream = mSocket.getOutputStream();
-						} catch (IOException e) {
-							mHandler.post(new MessageSetter("...failed to get streams: " + e.getMessage()));
-							shutdown(pass);
-							return;
-						}
-						byte[] buffer = new byte[1024];
-						int readBytes = -1;
-						try {
-							readBytes = inStream.read(buffer);
-						} catch (IOException e) {
-							mHandler.post(new MessageSetter("...failed to read input stream: " + e.getMessage()));
-						}
-						if (readBytes != -1) {
-							// construct a string from the valid bytes in the buffer
-							String responseStr = new String(buffer, 0, readBytes);
-							JSONObject responseJObj = null;
-							String challenge = null;
+			}
+			boolean pass = false;
+			if (passphrase == null)
+				mHandler.post(new MessageSetter("...no passphrase found for " + name));
+			else {
+				mBtAdapter.cancelDiscovery();
+				BluetoothDevice device = mBtAdapter.getRemoteDevice(mAddress);
+				mHandler.post(new MessageSetter("Searching for " + name));
+				int connectionAttempt;
+				for (connectionAttempt = 0; connectionAttempt < MAX_CONNECTION_ATTEMPTS; connectionAttempt++) {
+					mHandler.post(new MessageSetter(getResources().getStringArray(R.array.connection_messages)[connectionAttempt]));
+					try {
+						mSocket = device.createRfcommSocketToServiceRecord(sTapLockUUID);
+						mSocket.connect();
+					} catch (IOException e) {
+						mSocket = null;
+					}
+					if (mSocket != null) {
+						if (mAction == null)
+							mHandler.post(new PairingResultSetter(device.getName(), mAddress));
+						else {
+							// Get the BluetoothSocket input and output streams
 							try {
-								responseJObj = new JSONObject(responseStr);
-								if (responseJObj.has(PARAM_CHALLENGE))
-									challenge = responseJObj.getString(PARAM_CHALLENGE);
-							} catch (JSONException e) {
-								mHandler.post(new MessageSetter("...failed to parse response: " + responseStr + ", " + e.getMessage()));
+								inStream = mSocket.getInputStream();
+								outStream = mSocket.getOutputStream();
+							} catch (IOException e) {
+								mHandler.post(new MessageSetter("...failed to get streams: " + e.getMessage()));
+								shutdown(pass);
+								return;
 							}
-							if (challenge != null) {
-								// get passphrase
-								String passphrase = null;
-								for (JSONObject deviceJObj : mDevices) {
-									try {
-										if (deviceJObj.getString(KEY_ADDRESS).equals(mAddress)) {
-											if ((passphrase = deviceJObj.getString(KEY_PASSPHRASE)) != null) {
-												try {
-													JSONObject requestJObj = new JSONObject();
-													try {
-														requestJObj.put(PARAM_ACTION, mAction);
-														if (ACTION_PASSPHRASE.equals(mAction))
-															requestJObj.put(PARAM_PASSPHRASE, mNewPassphrase);
-														requestJObj.put(PARAM_HMAC, getHashString(challenge + passphrase + mAction + mNewPassphrase));
-														String requestStr = requestJObj.toString();
-														byte[] requestBytes = requestStr.getBytes();
-														outStream.write(requestBytes);
-														if (ACTION_PASSPHRASE.equals(mAction))
-															mHandler.post(new PassphraseSetter(mAddress, mNewPassphrase));
-														pass = true;
-													} catch (JSONException e) {
-														mHandler.post(new MessageSetter("...failed to build request: " + e.getMessage()));
-													}
-												} catch (NoSuchAlgorithmException e) {
-													mHandler.post(new MessageSetter("...failed to get hash string: " + e.getMessage()));
-												} catch (UnsupportedEncodingException e) {
-													mHandler.post(new MessageSetter("...failed to get hash string: " + e.getMessage()));
-												} catch (IOException e) {
-													mHandler.post(new MessageSetter("...failed to write to output stream: " + e.getMessage()));
-												}
-											}
-											break;
-										}
-									} catch (JSONException e) {
-										Log.e(TAG, e.getMessage());
-									}
-								}
-								if (passphrase == null)
-									mHandler.post(new MessageSetter("...no passphrase found for device"));
-							} else
-								mHandler.post(new MessageSetter("...failed to receive a challenge"));
-							// check for error messages
+							byte[] buffer = new byte[1024];
+							int readBytes = -1;
 							try {
 								readBytes = inStream.read(buffer);
 							} catch (IOException e) {
-								readBytes = -1;
+								mHandler.post(new MessageSetter("...failed to read input stream: " + e.getMessage()));
 							}
 							if (readBytes != -1) {
-								responseStr = new String(buffer, 0, readBytes);
-								String error = null;
+								// construct a string from the valid bytes in the buffer
+								String responseStr = new String(buffer, 0, readBytes);
+								JSONObject responseJObj = null;
+								String challenge = null;
 								try {
 									responseJObj = new JSONObject(responseStr);
-									if (responseJObj.has(PARAM_ERROR)) {
-										pass = false;
-										error = responseJObj.getString(PARAM_ERROR);
-									}
+									if (responseJObj.has(PARAM_CHALLENGE))
+										challenge = responseJObj.getString(PARAM_CHALLENGE);
 								} catch (JSONException e) {
-									responseJObj = null;
+									mHandler.post(new MessageSetter("...failed to parse response: " + responseStr + ", " + e.getMessage()));
 								}
-								if (error != null)
-									mHandler.post(new MessageSetter("error: " + error));
-							}
-						} else
-							mHandler.post(new MessageSetter("...failed to read input stream"));
+								if (challenge != null) {
+									try {
+										JSONObject requestJObj = new JSONObject();
+										try {
+											requestJObj.put(PARAM_ACTION, mAction);
+											if (ACTION_PASSPHRASE.equals(mAction))
+												requestJObj.put(PARAM_PASSPHRASE, mNewPassphrase);
+											requestJObj.put(PARAM_HMAC, getHashString(challenge + passphrase + mAction + mNewPassphrase));
+											String requestStr = requestJObj.toString();
+											byte[] requestBytes = requestStr.getBytes();
+											outStream.write(requestBytes);
+											if (ACTION_PASSPHRASE.equals(mAction))
+												mHandler.post(new PassphraseSetter(mAddress, mNewPassphrase));
+											pass = true;
+										} catch (JSONException e) {
+											mHandler.post(new MessageSetter("...failed to build request: " + e.getMessage()));
+										}
+									} catch (NoSuchAlgorithmException e) {
+										mHandler.post(new MessageSetter("...failed to get hash string: " + e.getMessage()));
+									} catch (UnsupportedEncodingException e) {
+										mHandler.post(new MessageSetter("...failed to get hash string: " + e.getMessage()));
+									} catch (IOException e) {
+										mHandler.post(new MessageSetter("...failed to write to output stream: " + e.getMessage()));
+									}
+								} else
+									mHandler.post(new MessageSetter("...failed to receive a challenge"));
+								// check for error messages
+								try {
+									readBytes = inStream.read(buffer);
+								} catch (IOException e) {
+									readBytes = -1;
+								}
+								if (readBytes != -1) {
+									responseStr = new String(buffer, 0, readBytes);
+									String error = null;
+									try {
+										responseJObj = new JSONObject(responseStr);
+										if (responseJObj.has(PARAM_ERROR)) {
+											pass = false;
+											error = responseJObj.getString(PARAM_ERROR);
+										}
+									} catch (JSONException e) {
+										responseJObj = null;
+									}
+									if (error != null)
+										mHandler.post(new MessageSetter("error: " + error));
+								}
+							} else
+								mHandler.post(new MessageSetter("...failed to read input stream"));
+						}
+						break;
 					}
-					break;
 				}
+				if (connectionAttempt == MAX_CONNECTION_ATTEMPTS)
+					mHandler.post(new MessageSetter("...where is " + name + "?"));
 			}
-			if (connectionAttempt == MAX_CONNECTION_ATTEMPTS)
-				mHandler.post(new MessageSetter("...device unavailable."));
 			shutdown(pass);
 		}
 

@@ -31,7 +31,10 @@
 	    android:layout_height="wrap_content"
 	    android:text="@string/widget_device_name"
 	    android:gravity="center"
-	    android:layout_alignBottom="@id/widget_icon"
+	    android:layout_alignParentBottom="true"
 	    android:paddingBottom="4dip"
-	    android:textColor="@color/gold" />
+	    android:textColor="@color/white"
+	    android:shadowDx="0.0"
+	    android:shadowDy="0.0"
+	    android:shadowRadius="2.0" />
 </RelativeLayout>

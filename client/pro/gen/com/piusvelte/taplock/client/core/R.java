@@ -11,6 +11,7 @@ public final class R {
     public static final class array {
         public static final int actions_entries=0x7f050000;
         public static final int actions_values=0x7f050001;
+        public static final int connection_messages=0x7f050004;
         public static final int download_entries=0x7f050002;
         public static final int download_values=0x7f050003;
     }
@@ -60,7 +61,6 @@ containing a value of this type.
         public static final int secondaryTextColor=0x7f010002;
     }
     public static final class color {
-        public static final int gold=0x7f060002;
         public static final int translucent_black=0x7f060001;
         public static final int white=0x7f060000;
     }

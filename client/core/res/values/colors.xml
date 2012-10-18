@@ -21,5 +21,4 @@
 <resources>
     <color name="white">#FFFFFFFF</color>
     <color name="translucent_black">#99000000</color>
-    <color name="gold">#FFFFD969</color>
 </resources>

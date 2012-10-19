@@ -33,7 +33,6 @@ import static com.piusvelte.taplock.client.core.TapLock.ACTION_COPY_DEVICE_URI;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_ADDRESS;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_NAME;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_PASSPHRASE;
-import static com.piusvelte.taplock.client.core.TapLock.KEY_WIDGETS;
 import static com.piusvelte.taplock.client.core.TapLock.DEFAULT_PASSPHRASE;
 import static com.piusvelte.taplock.client.core.TapLock.EXTRA_INFO;
 import static com.piusvelte.taplock.client.core.TapLock.EXTRA_DEVICE_NAME;
@@ -46,7 +45,6 @@ import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Set;
 
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -166,7 +164,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 					.create();
 					mDialog.show();
 				} else
-					Toast.makeText(getApplicationContext(), "no unpaired devices found", Toast.LENGTH_SHORT).show();
+					Toast.makeText(getApplicationContext(), getString(R.string.msg_nodevices), Toast.LENGTH_SHORT).show();
 			}
 		}
 
@@ -188,7 +186,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 		public void setPassphrase(String address, String passphrase) throws RemoteException {
 			if (address == null)
 				Toast.makeText(getApplicationContext(), "failed to set passphrase on TapLockServer", Toast.LENGTH_SHORT).show();
-			TapLock.storeDevices(getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE), getString(R.string.key_devices), mDevices);
+			storeDevices(getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE), getString(R.string.key_devices), mDevices);
 		}
 
 		@Override
@@ -397,7 +395,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 					Toast.makeText(TapLockSettings.this, "Touch tag", Toast.LENGTH_LONG).show();
 				} else if (ACTION_REMOVE.equals(action)) {
 					mDevices.remove(deviceIdx);
-					TapLock.storeDevices(getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE), getString(R.string.key_devices), mDevices);
+					storeDevices(getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE), getString(R.string.key_devices), mDevices);
 				} else if (ACTION_PASSPHRASE.equals(action))
 					setPassphrase(deviceIdx);
 				else if (ACTION_COPY_DEVICE_URI.equals(action)) {
@@ -431,7 +429,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 			// remove device
 			int deviceIdx = (int) ((AdapterContextMenuInfo) item.getMenuInfo()).id;
 			mDevices.remove(deviceIdx);
-			TapLock.storeDevices(getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE), getString(R.string.key_devices), mDevices);
+			storeDevices(getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE), getString(R.string.key_devices), mDevices);
 			return true;
 		}
 		return super.onContextItemSelected(item);
@@ -638,7 +636,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 						Log.e(TAG, e.getMessage());
 					}
 				} else
-					TapLock.storeDevices(getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE), getString(R.string.key_devices), mDevices);
+					storeDevices(getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE), getString(R.string.key_devices), mDevices);
 			}
 
 		})
@@ -664,17 +662,9 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 			Toast.makeText(getApplicationContext(), String.format(getString(R.string.msg_deviceexists), name), Toast.LENGTH_SHORT).show();
 		else {
 			// new device
-			JSONObject deviceJObj = new JSONObject();
-			try {
-				deviceJObj.put(KEY_NAME, name);
-				deviceJObj.put(KEY_ADDRESS, address);
-				deviceJObj.put(KEY_PASSPHRASE, DEFAULT_PASSPHRASE);
-				deviceJObj.put(KEY_WIDGETS, new JSONArray());
-			} catch (JSONException e) {
-				Log.e(TAG, e.getMessage());
-			}
+			JSONObject deviceJObj = TapLock.createDevice(name, address, DEFAULT_PASSPHRASE);
 			mDevices.add(deviceJObj);
-			TapLock.storeDevices(getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE), getString(R.string.key_devices), mDevices);
+			storeDevices(getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE), getString(R.string.key_devices), mDevices);
 			// instead of setting the passphrase for new devices, show info
 			// setPassphrase(mDevices.size() - 1);
 			if (mDevices.size() == 1) {
@@ -720,5 +710,11 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 			String[] deviceNames = TapLock.getDeviceNames(mDevices);
 			setListAdapter(new ArrayAdapter<String>(TapLockSettings.this, android.R.layout.simple_list_item_1, deviceNames));
 		}
+	}
+	
+	private void storeDevices(SharedPreferences sp, String key, ArrayList<JSONObject> devicesArr) {
+		TapLock.storeDevices(sp, key, devicesArr);
+		String[] deviceNames = TapLock.getDeviceNames(mDevices);
+		setListAdapter(new ArrayAdapter<String>(TapLockSettings.this, android.R.layout.simple_list_item_1, deviceNames));
 	}
 }

@@ -32,6 +32,7 @@ import static com.piusvelte.taplock.client.core.TapLock.PARAM_CHALLENGE;
 import static com.piusvelte.taplock.client.core.TapLock.PARAM_ERROR;
 import static com.piusvelte.taplock.client.core.TapLock.PARAM_HMAC;
 import static com.piusvelte.taplock.client.core.TapLock.PARAM_PASSPHRASE;
+import static com.piusvelte.taplock.client.core.TapLock.DEFAULT_PASSPHRASE;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -191,10 +192,11 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 						}
 					}
 				} else if (mRequestDiscovery && (mUIInterface != null)) {
+					String unpairedDevice = TapLock.createDevice(device.getName(), device.getAddress(), DEFAULT_PASSPHRASE).toString();
 					try {
-						mUIInterface.setUnpairedDevice(device.getName() + " " + device.getAddress());
+						mUIInterface.setUnpairedDevice(unpairedDevice);
 					} catch (RemoteException e) {
-						Log.e(TAG, e.toString());
+						Log.e(TAG, e.getMessage());
 					}
 				}
 			} else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
@@ -370,9 +372,9 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 	private class ConnectThread extends Thread {
 		private String mAddress = null;
 		private BluetoothSocket mSocket = null;
-		private InputStream inStream;
-		private OutputStream outStream;
-		private String mAction;
+		private InputStream inStream = null;
+		private OutputStream outStream = null;
+		private String mAction = null;
 		private String mNewPassphrase = null;
 
 		public ConnectThread(String address, String action, String newPassphrase) {
@@ -398,7 +400,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 				}
 			}
 			boolean pass = false;
-			if (passphrase == null)
+			if ((mAction != null) && passphrase == null)
 				mHandler.post(new MessageSetter("...no passphrase found for " + name));
 			else {
 				mBtAdapter.cancelDiscovery();

@@ -110,6 +110,7 @@ containing a value of this type.
         public static int msg_device_not_conf=0x7f07000d;
         public static int msg_deviceexists=0x7f07001d;
         public static int msg_enablebt=0x7f07000c;
+        public static int msg_nodevices=0x7f07001e;
         public static int msg_oops=0x7f07001a;
         public static int msg_scanning=0x7f070004;
         public static int msg_sdcardunavailable=0x7f07001b;

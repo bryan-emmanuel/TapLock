@@ -50,5 +50,6 @@
     <string name="msg_sdcardunavailable">The sdcard is not available. Is it inserted?</string>
     <string name="device_uri">taplock\u003A\u002F\u002F%s</string>
     <string name="msg_deviceexists">This device is already defined as %s.</string>
+    <string name="msg_nodevices">No unpaired devices found. Are they visible?</string>
 
 </resources>

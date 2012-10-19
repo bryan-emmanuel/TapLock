@@ -33,6 +33,8 @@ import static com.piusvelte.taplock.client.core.TapLock.PARAM_ERROR;
 import static com.piusvelte.taplock.client.core.TapLock.PARAM_HMAC;
 import static com.piusvelte.taplock.client.core.TapLock.PARAM_PASSPHRASE;
 import static com.piusvelte.taplock.client.core.TapLock.DEFAULT_PASSPHRASE;
+import static com.piusvelte.taplock.client.core.TapLock.KEY_DEVICES;
+import static com.piusvelte.taplock.client.core.TapLock.KEY_PREFS;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -132,7 +134,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 	@Override
 	public void onCreate() {
 		super.onCreate();
-		onSharedPreferenceChanged(getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE), getString(R.string.key_devices));
+		onSharedPreferenceChanged(getSharedPreferences(KEY_PREFS, Context.MODE_PRIVATE), KEY_DEVICES);
 		mBtAdapter = BluetoothAdapter.getDefaultAdapter();
 	}
 
@@ -218,82 +220,96 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 				requestWrite(address, ACTION_TOGGLE, null);
 			} else if (AppWidgetManager.ACTION_APPWIDGET_UPDATE.equals(action)) {
 				// create widget
-				AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(this);
 				if (intent.hasExtra(AppWidgetManager.EXTRA_APPWIDGET_ID)) {
 					int appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
+					Log.d(TAG, "appWidgetId: " + appWidgetId);
 					if (intent.hasExtra(EXTRA_DEVICE_NAME)) {
 						// add a widget
 						String deviceName = intent.getStringExtra(EXTRA_DEVICE_NAME);
+						Log.d(TAG, "deviceName: " + deviceName);
 						for (int i = 0, l = mDevices.size(); i < l; i++) {
+							String name = null;
 							try {
-								if (mDevices.get(i).getString(KEY_NAME).equals(deviceName)) {
-									JSONObject deviceJObj = mDevices.remove(i);
-									JSONArray widgetsJArr;
-									if (deviceJObj.has(KEY_WIDGETS)) {
+								name = mDevices.get(i).getString(KEY_NAME);
+							} catch (JSONException e1) {
+								e1.printStackTrace();
+							}
+							Log.d(TAG, "Eval " + name);
+							if ((name != null) && name.equals(deviceName)) {
+								JSONObject deviceJObj = mDevices.remove(i);
+								JSONArray widgetsJArr;
+								if (deviceJObj.has(KEY_WIDGETS)) {
+									try {
 										widgetsJArr = deviceJObj.getJSONArray(KEY_WIDGETS);
-									} else {
+									} catch (JSONException e) {
 										widgetsJArr = new JSONArray();
 									}
-									widgetsJArr.put(appWidgetId);
+								} else
+									widgetsJArr = new JSONArray();
+								widgetsJArr.put(appWidgetId);
+								try {
 									deviceJObj.put(KEY_WIDGETS, widgetsJArr);
-									mDevices.add(i, deviceJObj);
-									break;
+								} catch (JSONException e) {
+									e.printStackTrace();
 								}
-							} catch (JSONException e) {
-								e.printStackTrace();
-							}
-						}
-						TapLock.storeDevices(getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE), getString(R.string.key_devices), mDevices);
-					}
-					RemoteViews rv = new RemoteViews(getPackageName(), R.layout.widget);
-					String deviceName = null;
-					for (JSONObject deviceJObj : mDevices) {
-						if (deviceJObj.has(KEY_WIDGETS) && deviceJObj.has(KEY_NAME)) {
-							JSONArray widgetsJArr;
-							try {
-								widgetsJArr = deviceJObj.getJSONArray(KEY_WIDGETS);
-								for (int i = 0, l = widgetsJArr.length(); (i < l) && (deviceName == null); i++) {
-									if (appWidgetId == widgetsJArr.getInt(i))
-										deviceName = deviceJObj.getString(KEY_NAME);
-								}
-							} catch (JSONException e) {
-								e.printStackTrace();
-							}
-							if (deviceName != null)
+								mDevices.add(i, deviceJObj);
+								Log.d(TAG, "store");
+								TapLock.storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), KEY_DEVICES, mDevices);
 								break;
+							}
 						}
 					}
-					if (deviceName == null)
-						deviceName = "unknown";
-					rv.setTextViewText(R.id.device_name, deviceName);
-					rv.setOnClickPendingIntent(R.id.widget_icon, PendingIntent.getActivity(this, 0, TapLock.getPackageIntent(this, TapLockToggle.class).setData(Uri.parse(String.format(getString(R.string.device_uri), deviceName))), Intent.FLAG_ACTIVITY_NEW_TASK));
-					appWidgetManager.updateAppWidget(appWidgetId, rv);
+					buildWidget(appWidgetId);
+				} else if (intent.hasExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)) {
+					int[] appWidgetIds = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS);
+					if (appWidgetIds != null) {
+						for (int appWidgetId : appWidgetIds)
+							buildWidget(appWidgetId);
+					}
 				}
 			} else if (AppWidgetManager.ACTION_APPWIDGET_DELETED.equals(action)) {
 				int appWidgetId = intent.getExtras().getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
+				Log.d(TAG, "delete appWidgetId: " + appWidgetId);
 				for (int i = 0, l = mDevices.size(); i < l; i++) {
 					JSONObject deviceJObj = mDevices.get(i);
 					if (deviceJObj.has(KEY_WIDGETS)) {
-						JSONArray widgetsJArr;
+						JSONArray widgetsJArr = null;
 						try {
 							widgetsJArr = deviceJObj.getJSONArray(KEY_WIDGETS);
+						} catch (JSONException e) {
+							e.printStackTrace();
+						}
+						if (widgetsJArr != null) {
 							boolean wasUpdated = false;
 							JSONArray newWidgetsJArr = new JSONArray();
 							for (int widgetIdx = 0, wdigetsLen = widgetsJArr.length(); widgetIdx < wdigetsLen; widgetIdx++) {
-								int widgetsId;
-								widgetsId = widgetsJArr.getInt(widgetIdx);
-								if (widgetsId == appWidgetId)
+								int widgetId;
+								try {
+									widgetId = widgetsJArr.getInt(widgetIdx);
+								} catch (JSONException e) {
+									widgetId = AppWidgetManager.INVALID_APPWIDGET_ID;
+									e.printStackTrace();
+								}
+								Log.d(TAG, "eval widgetId: " + widgetId);
+								if ((widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) && (widgetId == appWidgetId)) {
+									Log.d(TAG, "skip: " + widgetId);
 									wasUpdated = true;
-								else
-									newWidgetsJArr.put(widgetsId);
+								} else {
+									Log.d(TAG, "include: " + widgetId);
+									newWidgetsJArr.put(widgetId);
+								}
 							}
 							if (wasUpdated) {
-								deviceJObj.put(KEY_WIDGETS, widgetsJArr);
-								mDevices.remove(i);
-								mDevices.add(i, deviceJObj);
+								try {
+									deviceJObj.put(KEY_WIDGETS, widgetsJArr);
+									mDevices.remove(i);
+									mDevices.add(i, deviceJObj);
+									TapLock.storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), KEY_DEVICES, mDevices);
+									Log.d(TAG, "stored: " + deviceJObj.toString());
+								} catch (JSONException e) {
+									e.printStackTrace();
+								}
 							}
-						} catch (JSONException e) {
-							e.printStackTrace();
 						}
 					} else {
 						JSONArray widgetsJArr = new JSONArray();
@@ -301,12 +317,12 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 							deviceJObj.put(KEY_WIDGETS, widgetsJArr);
 							mDevices.remove(i);
 							mDevices.add(i, deviceJObj);
+							TapLock.storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), KEY_DEVICES, mDevices);
 						} catch (JSONException e) {
 							e.printStackTrace();
 						}
 					}
 				}
-				TapLock.storeDevices(getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE), getString(R.string.key_devices), mDevices);
 			}
 		}
 		return START_STICKY;
@@ -325,6 +341,49 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 			mStartedBT = false;
 			mBtAdapter.disable();
 		}
+	}
+	
+	private void buildWidget(int appWidgetId) {
+		RemoteViews rv = new RemoteViews(getPackageName(), R.layout.widget);
+		String deviceName = null;
+		for (JSONObject deviceJObj : mDevices) {
+			if (deviceJObj.has(KEY_WIDGETS) && deviceJObj.has(KEY_NAME)) {
+				JSONArray widgetsJArr = null;
+				try {
+					widgetsJArr = deviceJObj.getJSONArray(KEY_WIDGETS);
+				} catch (JSONException e) {
+					e.printStackTrace();
+				}
+				if (widgetsJArr != null) {
+					for (int i = 0, l = widgetsJArr.length(); (i < l) && (deviceName == null); i++) {
+						int widgetId;
+						try {
+							widgetId = widgetsJArr.getInt(i);
+						} catch (JSONException e) {
+							widgetId = AppWidgetManager.INVALID_APPWIDGET_ID;
+							e.printStackTrace();
+						}
+						Log.d(TAG, "Eval widgetId: " + widgetId);
+						if ((widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) && (appWidgetId == widgetId)) {
+							try {
+								deviceName = deviceJObj.getString(KEY_NAME);
+								Log.d(TAG, "found deviceName: " + deviceName);
+							} catch (JSONException e) {
+								e.printStackTrace();
+							}
+							break;
+						}
+					}
+				}
+				if (deviceName != null)
+					break;
+			}
+		}
+		if (deviceName == null)
+			deviceName = "unknown";
+		rv.setTextViewText(R.id.device_name, deviceName);
+		rv.setOnClickPendingIntent(R.id.widget_icon, PendingIntent.getActivity(this, 0, TapLock.getPackageIntent(this, TapLockToggle.class).setData(Uri.parse(String.format(getString(R.string.device_uri), deviceName))), Intent.FLAG_ACTIVITY_NEW_TASK));
+		AppWidgetManager.getInstance(this).updateAppWidget(appWidgetId, rv);
 	}
 
 	protected static String getHashString(String str) throws NoSuchAlgorithmException, UnsupportedEncodingException {
@@ -405,10 +464,11 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 			else {
 				mBtAdapter.cancelDiscovery();
 				BluetoothDevice device = mBtAdapter.getRemoteDevice(mAddress);
-				mHandler.post(new MessageSetter("Searching for " + name));
+				mHandler.post(new MessageSetter("Searching for " + name + "..."));
 				int connectionAttempt;
 				for (connectionAttempt = 0; connectionAttempt < MAX_CONNECTION_ATTEMPTS; connectionAttempt++) {
-					mHandler.post(new MessageSetter(getResources().getStringArray(R.array.connection_messages)[connectionAttempt]));
+					if (connectionAttempt > 0)
+						mHandler.post(new MessageSetter(getResources().getStringArray(R.array.connection_messages)[connectionAttempt]));
 					try {
 						mSocket = device.createRfcommSocketToServiceRecord(sTapLockUUID);
 						mSocket.connect();
@@ -543,9 +603,9 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 
 	@Override
 	public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-		if (key.equals(getString(R.string.key_devices))) {
+		if (key.equals(KEY_DEVICES)) {
 			mDevices.clear();
-			Set<String> devices = sharedPreferences.getStringSet(getString(R.string.key_devices), null);
+			Set<String> devices = sharedPreferences.getStringSet(KEY_DEVICES, null);
 			if (devices != null) {
 				for (String device : devices) {
 					try {

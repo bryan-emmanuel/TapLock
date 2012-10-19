@@ -25,8 +25,6 @@
     <string name="chk_sec">Secure</string>
     <string name="btn_bt_scan">Scan for new Devices</string>
     <string name="msg_scanning">scanning&#8230;</string>
-    <string name="key_preferences">remoteauthclient</string>
-    <string name="key_devices">devices</string>
     <string name="no_devices">No saved devices</string>
     <string name="mn_remove">Remove device</string>
     <string name="widget_device_name">unknown</string>

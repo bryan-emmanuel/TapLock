@@ -36,6 +36,8 @@ import static com.piusvelte.taplock.client.core.TapLock.KEY_PASSPHRASE;
 import static com.piusvelte.taplock.client.core.TapLock.DEFAULT_PASSPHRASE;
 import static com.piusvelte.taplock.client.core.TapLock.EXTRA_INFO;
 import static com.piusvelte.taplock.client.core.TapLock.EXTRA_DEVICE_NAME;
+import static com.piusvelte.taplock.client.core.TapLock.KEY_DEVICES;
+import static com.piusvelte.taplock.client.core.TapLock.KEY_PREFS;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -186,7 +188,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 		public void setPassphrase(String address, String passphrase) throws RemoteException {
 			if (address == null)
 				Toast.makeText(getApplicationContext(), "failed to set passphrase on TapLockServer", Toast.LENGTH_SHORT).show();
-			storeDevices(getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE), getString(R.string.key_devices), mDevices);
+			storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), KEY_DEVICES, mDevices);
 		}
 
 		@Override
@@ -292,7 +294,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 			}
 			mInWriteMode = false;
 		} else {
-			onSharedPreferenceChanged(getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE), getString(R.string.key_devices));
+			onSharedPreferenceChanged(getSharedPreferences(KEY_PREFS, Context.MODE_PRIVATE), KEY_DEVICES);
 			// check if configuring a widget
 			if (intent != null) {
 				Bundle extras = intent.getExtras();
@@ -395,7 +397,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 					Toast.makeText(TapLockSettings.this, "Touch tag", Toast.LENGTH_LONG).show();
 				} else if (ACTION_REMOVE.equals(action)) {
 					mDevices.remove(deviceIdx);
-					storeDevices(getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE), getString(R.string.key_devices), mDevices);
+					storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), KEY_DEVICES, mDevices);
 				} else if (ACTION_PASSPHRASE.equals(action))
 					setPassphrase(deviceIdx);
 				else if (ACTION_COPY_DEVICE_URI.equals(action)) {
@@ -429,7 +431,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 			// remove device
 			int deviceIdx = (int) ((AdapterContextMenuInfo) item.getMenuInfo()).id;
 			mDevices.remove(deviceIdx);
-			storeDevices(getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE), getString(R.string.key_devices), mDevices);
+			storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), KEY_DEVICES, mDevices);
 			return true;
 		}
 		return super.onContextItemSelected(item);
@@ -636,7 +638,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 						Log.e(TAG, e.getMessage());
 					}
 				} else
-					storeDevices(getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE), getString(R.string.key_devices), mDevices);
+					storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), KEY_DEVICES, mDevices);
 			}
 
 		})
@@ -664,7 +666,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 			// new device
 			JSONObject deviceJObj = TapLock.createDevice(name, address, DEFAULT_PASSPHRASE);
 			mDevices.add(deviceJObj);
-			storeDevices(getSharedPreferences(getString(R.string.key_preferences), MODE_PRIVATE), getString(R.string.key_devices), mDevices);
+			storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), KEY_DEVICES, mDevices);
 			// instead of setting the passphrase for new devices, show info
 			// setPassphrase(mDevices.size() - 1);
 			if (mDevices.size() == 1) {
@@ -695,9 +697,9 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 
 	@Override
 	public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-		if (key.equals(getString(R.string.key_devices))) {
+		if (key.equals(KEY_DEVICES)) {
 			mDevices.clear();
-			Set<String> devices = sharedPreferences.getStringSet(getString(R.string.key_devices), null);
+			Set<String> devices = sharedPreferences.getStringSet(KEY_DEVICES, null);
 			if (devices != null) {
 				for (String device : devices) {
 					try {

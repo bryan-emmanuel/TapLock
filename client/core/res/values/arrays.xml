@@ -46,9 +46,10 @@
 	    <item>com.piusvelte.taplock.ACTION_DOWNLOAD_EMAIL</item>
 	</string-array>
 	<string-array name="connection_messages">
+	    <item></item>
 	    <item>&#8230;in the Room of Requirement&#8230;</item>
-	    <item>&#8230;in the TARDIS&#8230;</item>
 	    <item>&#8230;in Mos Eisley&#8230;</item>
-	    <item>&#8230;in Bree&#8230;</item>
+	    <item>&#8230;in the Console Room&#8230;</item>
+	    <item>&#8230;in 1985&#8230;</item>
 	</string-array>
 </resources>

@@ -22,6 +22,8 @@ package com.piusvelte.taplock.client.core;
 import static com.piusvelte.taplock.client.core.TapLock.ACTION_TOGGLE;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_ADDRESS;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_NAME;
+import static com.piusvelte.taplock.client.core.TapLock.KEY_DEVICES;
+import static com.piusvelte.taplock.client.core.TapLock.KEY_PREFS;
 
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
@@ -120,8 +122,8 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 		});
 		mProgressDialog.show();
 		mDevices.clear();
-		final SharedPreferences sp = getSharedPreferences(getString(R.string.key_preferences), Context.MODE_PRIVATE);
-		Set<String> devices = sp.getStringSet(getString(R.string.key_devices), null);
+		final SharedPreferences sp = getSharedPreferences(KEY_PREFS, Context.MODE_PRIVATE);
+		Set<String> devices = sp.getStringSet(KEY_DEVICES, null);
 		if (devices != null) {
 			for (String device : devices) {
 				try {

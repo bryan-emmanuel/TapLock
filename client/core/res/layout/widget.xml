@@ -34,7 +34,8 @@
 	    android:layout_alignParentBottom="true"
 	    android:paddingBottom="4dip"
 	    android:textColor="@color/white"
-	    android:shadowDx="0.0"
-	    android:shadowDy="0.0"
-	    android:shadowRadius="2.0" />
+	    android:shadowColor="@color/shadow_black"
+	    android:shadowDx="1.5"
+	    android:shadowDy="1.3"
+	    android:shadowRadius="1.6" />
 </RelativeLayout>

@@ -19,11 +19,14 @@
  */
 package com.piusvelte.taplock.client.core;
 
+import static com.piusvelte.taplock.client.core.TapLock.ACTION_LOCK;
 import static com.piusvelte.taplock.client.core.TapLock.ACTION_TOGGLE;
+import static com.piusvelte.taplock.client.core.TapLock.ACTION_UNLOCK;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_ADDRESS;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_NAME;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_DEVICES;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_PREFS;
+import static com.piusvelte.taplock.client.core.TapLock.EXTRA_DEVICE_NAME;
 
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
@@ -194,7 +197,7 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 							String textEncoding = ((payload[0] & 0200) == 0) ? "UTF-8" : "UTF-16";
 							int languageCodeLength = payload[0] & 0077;
 							String taggedDeviceName = new String(payload, languageCodeLength + 1, payload.length - languageCodeLength - 1, textEncoding);
-							toggleDevice(taggedDeviceName);
+							manageDevice(taggedDeviceName, ACTION_TOGGLE);
 						} catch (UnsupportedEncodingException e) {
 							// should never happen unless we get a malformed tag.
 							Log.e(TAG, e.toString());
@@ -207,10 +210,12 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 			} else if (intent.getData() != null) {
 				String taggedDeviceName = intent.getData().getHost();
 				if (taggedDeviceName != null)
-					toggleDevice(taggedDeviceName);
+					manageDevice(taggedDeviceName, ACTION_TOGGLE);
 				else
 					finish();
-			} else
+			} else if (ACTION_UNLOCK.equals(action) || ACTION_LOCK.equals(action) || ACTION_TOGGLE.equals(action))
+				manageDevice(intent.getStringExtra(EXTRA_DEVICE_NAME), action);
+			else
 				finish();
 		} else
 			finish();
@@ -220,12 +225,12 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 	public void onServiceDisconnected(ComponentName arg0) {
 		mServiceInterface = null;
 	}
-
-	private void toggleDevice(String taggedDeviceName) {
+	
+	private void manageDevice(String name, String action) {
 		String address = null;
 		for (JSONObject deviceJObj : mDevices) {
 			try {
-				if (deviceJObj.getString(KEY_NAME).equals(taggedDeviceName)) {
+				if (deviceJObj.getString(KEY_NAME).equals(name)) {
 					address = deviceJObj.getString(KEY_ADDRESS);
 					break;
 				}
@@ -235,12 +240,12 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 		}
 		if (address != null) {
 			try {
-				mServiceInterface.write(address, ACTION_TOGGLE, null);
+				mServiceInterface.write(address, action, null);
 			} catch (RemoteException e) {
 				Log.e(TAG, e.toString());
 			}
 		} else {
-			Toast.makeText(getApplicationContext(), String.format(getString(R.string.msg_device_not_conf), taggedDeviceName), Toast.LENGTH_LONG).show();
+			Toast.makeText(getApplicationContext(), String.format(getString(R.string.msg_device_not_conf), name), Toast.LENGTH_LONG).show();
 			finish();
 		}
 	}

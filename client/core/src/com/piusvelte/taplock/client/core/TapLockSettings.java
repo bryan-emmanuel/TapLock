@@ -373,16 +373,13 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 				JSONObject deviceJObj = mDevices.get(deviceIdx);
 				dialog.cancel();
 				if (ACTION_UNLOCK.equals(action) || ACTION_LOCK.equals(action) || ACTION_TOGGLE.equals(action)) {
-					// attempt to connect to the device
-					if (mServiceInterface != null) {
-						try {
-							mServiceInterface.write(deviceJObj.getString(KEY_ADDRESS), action, null);
-						} catch (RemoteException e) {
-							Log.e(TAG, e.toString());
-						} catch (JSONException e) {
-							Log.e(TAG, e.getMessage());
-						}
+					String name = "uknown";
+					try {
+						name = deviceJObj.getString(KEY_NAME);
+					} catch (JSONException e) {
+						e.printStackTrace();
 					}
+					startActivity(TapLock.getPackageIntent(getApplicationContext(), TapLockToggle.class).setAction(action).putExtra(EXTRA_DEVICE_NAME, name));
 				} else if (ACTION_TAG.equals(action)) {
 					// write the device to a tag
 					mInWriteMode = true;

@@ -27,7 +27,7 @@
     <string name="msg_scanning">scanning&#8230;</string>
     <string name="no_devices">No saved devices</string>
     <string name="mn_remove">Remove device</string>
-    <string name="widget_device_name">unknown</string>
+    <string name="widget_device_name">loading</string>
     <string name="widget_device_state">toggle</string>
     <string name="ttl_enablebt">Bluetooth is required.</string>
     <string name="msg_enablebt">Enable bluetooth?</string>

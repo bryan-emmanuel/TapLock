@@ -75,10 +75,10 @@ containing a value of this type.
         public static int button_about=0x7f0a0007;
         public static int button_add_device=0x7f0a0006;
         public static int close=0x7f0a0001;
-        public static int device_name=0x7f0a0005;
+        public static int device_name=0x7f0a0004;
         public static int info=0x7f0a0000;
         public static int widget=0x7f0a0003;
-        public static int widget_icon=0x7f0a0004;
+        public static int widget_icon=0x7f0a0005;
     }
     public static final class layout {
         public static int info=0x7f030000;

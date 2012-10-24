@@ -359,11 +359,9 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 							widgetId = AppWidgetManager.INVALID_APPWIDGET_ID;
 							e.printStackTrace();
 						}
-						Log.d(TAG, "Eval widgetId: " + widgetId);
 						if ((widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) && (appWidgetId == widgetId)) {
 							try {
 								deviceName = deviceJObj.getString(KEY_NAME);
-								Log.d(TAG, "found deviceName: " + deviceName);
 							} catch (JSONException e) {
 								e.printStackTrace();
 							}
@@ -602,6 +600,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 
 	@Override
 	public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+		Log.d(TAG, "onSharedPreferenceChanged");
 		if (key.equals(KEY_DEVICES)) {
 			mDevices.clear();
 			Set<String> devices = sharedPreferences.getStringSet(KEY_DEVICES, null);
@@ -614,6 +613,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 					}
 				}
 			}
+			Log.d(TAG, "mDevices reloaded");
 		}
 	}
 

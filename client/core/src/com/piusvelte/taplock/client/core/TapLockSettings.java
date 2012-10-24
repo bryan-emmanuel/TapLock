@@ -188,7 +188,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 		public void setPassphrase(String address, String passphrase) throws RemoteException {
 			if (address == null)
 				Toast.makeText(getApplicationContext(), "failed to set passphrase on TapLockServer", Toast.LENGTH_SHORT).show();
-			storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), KEY_DEVICES, mDevices);
+			storeDevices();
 		}
 
 		@Override
@@ -394,7 +394,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 					Toast.makeText(TapLockSettings.this, "Touch tag", Toast.LENGTH_LONG).show();
 				} else if (ACTION_REMOVE.equals(action)) {
 					mDevices.remove(deviceIdx);
-					storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), KEY_DEVICES, mDevices);
+					storeDevices();
 				} else if (ACTION_PASSPHRASE.equals(action))
 					setPassphrase(deviceIdx);
 				else if (ACTION_COPY_DEVICE_URI.equals(action)) {
@@ -428,7 +428,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 			// remove device
 			int deviceIdx = (int) ((AdapterContextMenuInfo) item.getMenuInfo()).id;
 			mDevices.remove(deviceIdx);
-			storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), KEY_DEVICES, mDevices);
+			storeDevices();
 			return true;
 		}
 		return super.onContextItemSelected(item);
@@ -635,7 +635,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 						Log.e(TAG, e.getMessage());
 					}
 				} else
-					storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), KEY_DEVICES, mDevices);
+					storeDevices();
 			}
 
 		})
@@ -663,7 +663,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 			// new device
 			JSONObject deviceJObj = TapLock.createDevice(name, address, DEFAULT_PASSPHRASE);
 			mDevices.add(deviceJObj);
-			storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), KEY_DEVICES, mDevices);
+			storeDevices();
 			// instead of setting the passphrase for new devices, show info
 			// setPassphrase(mDevices.size() - 1);
 			if (mDevices.size() == 1) {
@@ -711,8 +711,8 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 		}
 	}
 	
-	private void storeDevices(SharedPreferences sp, String key, ArrayList<JSONObject> devicesArr) {
-		TapLock.storeDevices(sp, key, devicesArr);
+	private void storeDevices() {
+		TapLock.storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), mDevices);
 		String[] deviceNames = TapLock.getDeviceNames(mDevices);
 		setListAdapter(new ArrayAdapter<String>(TapLockSettings.this, android.R.layout.simple_list_item_1, deviceNames));
 	}

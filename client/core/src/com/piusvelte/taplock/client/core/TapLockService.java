@@ -482,7 +482,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 							} catch (IOException e) {
 								inStream = null;
 								outStream = null;
-								mHandler.post(new MessageSetter("...failed to get streams: " + e.getMessage()));
+								mHandler.post(new MessageSetter("...error getting streams: " + e.getMessage()));
 							}
 							if ((inStream != null) && (outStream != null)) {
 								byte[] buffer = new byte[1024];
@@ -490,7 +490,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 								try {
 									readBytes = inStream.read(buffer);
 								} catch (IOException e) {
-									mHandler.post(new MessageSetter("...failed to read input stream: " + e.getMessage()));
+									mHandler.post(new MessageSetter("...error reading input stream: " + e.getMessage()));
 								}
 								if (readBytes != -1) {
 									// construct a string from the valid bytes in the buffer
@@ -502,9 +502,10 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 										if (responseJObj.has(PARAM_CHALLENGE))
 											challenge = responseJObj.getString(PARAM_CHALLENGE);
 									} catch (JSONException e) {
-										mHandler.post(new MessageSetter("...failed to parse response: " + responseStr + ", " + e.getMessage()));
+										mHandler.post(new MessageSetter("...error reading response: " + responseStr + ", " + e.getMessage()));
 									}
 									if (challenge != null) {
+										byte[] requestBytes = null;
 										try {
 											JSONObject requestJObj = new JSONObject();
 											try {
@@ -513,52 +514,60 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 													requestJObj.put(PARAM_PASSPHRASE, mNewPassphrase);
 												requestJObj.put(PARAM_HMAC, getHashString(challenge + passphrase + mAction + mNewPassphrase));
 												String requestStr = requestJObj.toString();
-												byte[] requestBytes = requestStr.getBytes();
+												requestBytes = requestStr.getBytes();
+											} catch (JSONException e) {
+												mHandler.post(new MessageSetter("...error building request: " + e.getMessage()));
+											}
+										} catch (NoSuchAlgorithmException e) {
+											mHandler.post(new MessageSetter("...error generating hash: " + e.getMessage()));
+										} catch (UnsupportedEncodingException e) {
+											mHandler.post(new MessageSetter("...error generating hash: " + e.getMessage()));
+										}
+										if (requestBytes != null) {
+											try {
 												outStream.write(requestBytes);
 												if (ACTION_PASSPHRASE.equals(mAction))
 													mHandler.post(new PassphraseSetter(mAddress, mNewPassphrase));
 												pass = true;
-											} catch (JSONException e) {
-												mHandler.post(new MessageSetter("...failed to build request: " + e.getMessage()));
+											} catch (IOException e) {
+												mHandler.post(new MessageSetter("...error writing to output stream: " + e.getMessage()));
 											}
-										} catch (NoSuchAlgorithmException e) {
-											mHandler.post(new MessageSetter("...failed to get hash string: " + e.getMessage()));
-										} catch (UnsupportedEncodingException e) {
-											mHandler.post(new MessageSetter("...failed to get hash string: " + e.getMessage()));
-										} catch (IOException e) {
-											mHandler.post(new MessageSetter("...failed to write to output stream: " + e.getMessage()));
 										}
 									} else
-										mHandler.post(new MessageSetter("...failed to receive a challenge"));
-									// check for error messages
-									try {
-										readBytes = inStream.read(buffer);
-									} catch (IOException e) {
-										readBytes = -1;
-									}
-									if (readBytes != -1) {
-										responseStr = new String(buffer, 0, readBytes);
+										mHandler.post(new MessageSetter("...error receiving challenge from Tap Lock Server."));
+									if (pass) {
+										// check for error messages
 										String error = null;
 										try {
-											responseJObj = new JSONObject(responseStr);
-											if (responseJObj.has(PARAM_ERROR)) {
-												pass = false;
-												error = responseJObj.getString(PARAM_ERROR);
-											}
-										} catch (JSONException e) {
-											responseJObj = null;
+											readBytes = inStream.read(buffer);
+										} catch (IOException e) {
+											readBytes = -1;
+											error = e.getMessage();
 										}
-										if (error != null)
-											mHandler.post(new MessageSetter("error: " + error));
+										if (readBytes != -1) {
+											responseStr = new String(buffer, 0, readBytes);
+											try {
+												responseJObj = new JSONObject(responseStr);
+												if (responseJObj.has(PARAM_ERROR)) {
+													pass = false;
+													error = responseJObj.getString(PARAM_ERROR);
+												}
+											} catch (JSONException e) {
+												responseJObj = null;
+											}
+											if (error != null)
+												mHandler.post(new MessageSetter("error: " + error));
+										} else
+											mHandler.post(new MessageSetter("... error reading input stream: " + error));
 									}
 									break;
 								}
 							}
 						}
 					}
-					if (connectionAttempt == MAX_CONNECTION_ATTEMPTS)
-						mHandler.post(new MessageSetter("...unable to connect to " + name + "?"));
 				}
+				if (connectionAttempt == MAX_CONNECTION_ATTEMPTS)
+					mHandler.post(new MessageSetter("...unable to connect to " + name + ". Is it in range? Is it bluetooth enabled? Please close this."));
 			}
 			shutdown(pass);
 		}

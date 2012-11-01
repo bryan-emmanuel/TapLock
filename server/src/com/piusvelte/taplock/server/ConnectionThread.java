@@ -20,12 +20,17 @@
 package com.piusvelte.taplock.server;
 
 import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
+import java.net.Socket;
+import java.net.UnknownHostException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Properties;
 
 import javax.bluetooth.DiscoveryAgent;
 import javax.bluetooth.LocalDevice;
@@ -133,49 +138,78 @@ public class ConnectionThread extends Thread {
 									if (TapLockServer.ACTION_PASSPHRASE.equals(requestAction))
 										TapLockServer.setPassphrase(requestPassphrase);
 									else {
-										if (TapLockServer.ACTION_TOGGLE.equals(requestAction))
-											requestAction = TapLockServer.getToggleAction();
-										String command = null;
-										if (TapLockServer.ACTION_LOCK.equals(requestAction)) {
-											if (TapLockServer.OS == TapLockServer.OS_NIX)
-												command = "gnome-screensaver-command -a";
-											else if (TapLockServer.OS == TapLockServer.OS_WIN)
-												command = "rundll32.exe user32.dll, LockWorkStation";
-										} else if (TapLockServer.ACTION_UNLOCK.equals(requestAction)) {
-											if (TapLockServer.OS == TapLockServer.OS_NIX)
-												command = "gnome-screensaver-command -d";
-											else if (TapLockServer.OS == TapLockServer.OS_WIN)
-												new TapLockNativeUnlock().nativeUnlock();
-										}
-										if (command != null) {
-											TapLockServer.writeLog("command: " + command);
-											Process p = null;
-											try {
-												p = Runtime.getRuntime().exec(command);
-											} catch (IOException e) {
-												TapLockServer.writeLog("Runtime.getRuntime().exec: " + e.getMessage());
-											}
-											if (p != null) {
-												BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream())); 
-												String line = null;
+										if (TapLockServer.OS == TapLockServer.OS_WIN) {
+											if (TapLockServer.ACTION_LOCK.equals(requestAction))
+												runCommand("rundll32.exe user32.dll, LockWorkStation");
+											else {
+												// either unlock or toggle
+												//TODO: decrypt password
+												String password = "";
+												Properties prop = new Properties();
 												try {
-													line = reader.readLine();
+													prop.load(new FileInputStream(TapLockServer.sProperties));
+													if (prop.containsKey(TapLockServer.sPasswordKey))
+														password = prop.getProperty(TapLockServer.sPasswordKey);
+												} catch (FileNotFoundException e) {
+													TapLockServer.writeLog("prop load: " + e.getMessage());
 												} catch (IOException e) {
-													TapLockServer.writeLog("reader.readLine: " + e.getMessage());
-												} 
-												while (line != null) { 
-													TapLockServer.writeLog(line);
-													try {
-														line = reader.readLine();
-													} catch (IOException e) {
-														TapLockServer.writeLog("reader.readLine: " + e.getMessage());
-													} 
+													TapLockServer.writeLog("prop load: " + e.getMessage());
 												}
-//												if (TapLockServer.ACTION_LOCK.equals(requestAction))
-//													TapLockServer.sState = TapLockServer.STATE_LOCKED;
-//												else if (TapLockServer.ACTION_UNLOCK.equals(requestAction))
-//													TapLockServer.sState = TapLockServer.STATE_UNLOCKED;
+												Socket clientSocket = null;
+												try {
+													clientSocket = new Socket(TapLockServer.S_LOCALHOST, TapLockServer.SERVER_PORT);
+												} catch (UnknownHostException e) {
+													TapLockServer.writeLog("socket: " + e.getMessage());
+												} catch (IOException e) {
+													TapLockServer.writeLog("socket: " + e.getMessage());
+												}
+												if (clientSocket != null) {
+													InputStream inStream = null;
+													OutputStream outStream = null;
+													try {
+														inStream = clientSocket.getInputStream();
+														outStream = clientSocket.getOutputStream();
+													} catch (IOException e) {
+														TapLockServer.writeLog("in/out stream: " + e.getMessage());
+													}
+													if ((inStream != null) && (outStream != null)) {
+														// send the credentials
+														// the socket should return "0" if no errors
+														try {
+															outStream.write(System.getProperty("user.name").getBytes());
+															outStream.write(password.getBytes());
+														} catch (IOException e) {
+															TapLockServer.writeLog("output stream: " + e.getMessage());
+														}
+														try {
+															outStream.close();
+														} catch (IOException e) {
+															TapLockServer.writeLog("output close: " + e.getMessage());
+														}
+														try {
+															inStream.close();
+														} catch (IOException e) {
+															TapLockServer.writeLog("in close: " + e.getMessage());
+														}
+														try {
+															clientSocket.close();
+														} catch (IOException e) {
+															TapLockServer.writeLog("socket close: " + e.getMessage());
+														}
+													}
+												} else
+													runCommand("rundll32.exe user32.dll, LockWorkStation");
 											}
+										} else if (TapLockServer.OS == TapLockServer.OS_NIX) {
+											if (TapLockServer.ACTION_TOGGLE.equals(requestAction))
+												requestAction = TapLockServer.getToggleAction();
+											String command = null;
+											if (TapLockServer.ACTION_LOCK.equals(requestAction))
+												command = "gnome-screensaver-command -a";
+											else if (TapLockServer.ACTION_UNLOCK.equals(requestAction))
+												command = "gnome-screensaver-command -d";
+											if (command != null)
+												runCommand(command);
 										}
 									}
 								} else {
@@ -229,6 +263,33 @@ public class ConnectionThread extends Thread {
 					}
 					connection = null;
 				}
+			}
+		}
+	}
+	
+	private void runCommand(String command) {
+		TapLockServer.writeLog("command: " + command);
+		Process p = null;
+		try {
+			p = Runtime.getRuntime().exec(command);
+		} catch (IOException e) {
+			TapLockServer.writeLog("Runtime.getRuntime().exec: " + e.getMessage());
+		}
+		if (p != null) {
+			BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream())); 
+			String line = null;
+			try {
+				line = reader.readLine();
+			} catch (IOException e) {
+				TapLockServer.writeLog("reader.readLine: " + e.getMessage());
+			} 
+			while (line != null) { 
+				TapLockServer.writeLog(line);
+				try {
+					line = reader.readLine();
+				} catch (IOException e) {
+					TapLockServer.writeLog("reader.readLine: " + e.getMessage());
+				} 
 			}
 		}
 	}

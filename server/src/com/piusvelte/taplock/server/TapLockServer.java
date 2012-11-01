@@ -68,13 +68,10 @@ public class TapLockServer implements Daemon {
 	public static final String PARAM_CHALLENGE = "challenge";
 	public static final String PARAM_ERROR = "error";
 
-	protected static final int STATE_LOCKED = 1;
-	protected static final int STATE_UNLOCKED = 0;
-//	protected static int sState = STATE_UNLOCKED;
-
 	protected static final String sPassphraseKey = "passphrase";
 	protected static final String sDisplaySystemTrayKey = "displaysystemtray";
 	protected static final String sDebuggingKey = "debugging";
+	protected static final String sPasswordKey = "password";
 	protected static String sPassphrase = "TapLock";
 	protected static boolean sDisplaySystemTray = true;
 	protected static boolean sDebugging = false;
@@ -86,6 +83,9 @@ public class TapLockServer implements Daemon {
 
 	private static ConnectionThread sConnectionThread = null;
 	private static int[] sConnectionThreadLock = new int[0];
+	
+	protected static final String S_LOCALHOST = "127.0.0.1";
+	protected static final int SERVER_PORT = 8;
 
 	protected static final int OS_NIX = 0;
 	protected static final int OS_WIN = 1;
@@ -203,6 +203,27 @@ public class TapLockServer implements Daemon {
 			MenuItem shutdownItem = new MenuItem("Shutdown Tap Lock Server");
 			popupMenu.add(aboutItem);
 			popupMenu.add(toggleSystemTrayIcon);
+			if (OS == OS_WIN) {
+				MenuItem setPasswordItem = new MenuItem("Set password");
+				popupMenu.add(setPasswordItem);
+				setPasswordItem.addActionListener(new ActionListener() {
+					@Override
+					public void actionPerformed(ActionEvent e) {
+						String password = (String) JOptionPane.showInputDialog("Enter you Windows account password:");
+						//TODO: encrypt the password
+						Properties prop = new Properties();
+						try {
+							prop.load(new FileInputStream(sProperties));
+							prop.setProperty(sPasswordKey, password);
+							prop.store(new FileOutputStream(sProperties), null);
+						} catch (FileNotFoundException e1) {
+							writeLog("prop load: " + e1.getMessage());
+						} catch (IOException e1) {
+							writeLog("prop load: " + e1.getMessage());
+						}
+					}
+				});
+			}
 			popupMenu.add(toggleDebugging);
 			popupMenu.add(shutdownItem);
 			trayIcon.setPopupMenu(popupMenu);
@@ -334,8 +355,7 @@ public class TapLockServer implements Daemon {
 				}
 				return ACTION_UNLOCK;
 			}
-		} else if (OS == OS_WIN)
-			return new TapLockNativeUnlock().nativeIsLocked() ? ACTION_UNLOCK : ACTION_LOCK;
+		}
 		return ACTION_LOCK;
 	}
 

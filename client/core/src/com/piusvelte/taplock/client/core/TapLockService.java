@@ -81,6 +81,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 	private static final UUID sTapLockUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 	private int[] mThreadLock = new int[0];
 	private static final int MAX_CONNECTION_ATTEMPTS = 4;
+	private boolean mRequestCanceled = true;
 	private Handler mHandler = new Handler();
 
 	private ITapLockUI mUIInterface;
@@ -129,6 +130,11 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 			mStartedBT = true;
 			mBtAdapter.enable();
 		}
+
+		@Override
+		public void cancelRequest() throws RemoteException {
+			setRequestCanceled(false);
+		}
 	};
 
 	@Override
@@ -145,15 +151,14 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 			if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
 				int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.STATE_OFF);
 				if (state == BluetoothAdapter.STATE_ON) {
-					if (mUIInterface != null) {
-						try {
-							mUIInterface.setMessage("Bluetooth enabled");
-						} catch (RemoteException e) {
-							Log.e(TAG, e.getMessage());
-						}
-					}
-					// if pending...
 					if (mStartedBT) {
+						if (mUIInterface != null) {
+							try {
+								mUIInterface.setMessage("Bluetooth enabled");
+							} catch (RemoteException e) {
+								Log.e(TAG, e.getMessage());
+							}
+						}
 						if ((mQueueAddress != null) && (mQueueState != null))
 							requestWrite(mQueueAddress, mQueueState, mQueuePassphrase);
 						else if (mRequestDiscovery && !mBtAdapter.isDiscovering())
@@ -395,6 +400,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 	}
 
 	private void requestWrite(String address, String action, String passphrase) {
+		setRequestCanceled(true);
 		if (mBtAdapter.isEnabled()) {
 			synchronized (mThreadLock) {
 				if (mConnectThread != null)
@@ -421,6 +427,18 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 				mConnectThread.shutdown();
 		}
 	}
+	
+	private void setRequestCanceled(boolean requestCanceled) {
+		synchronized (mThreadLock) {
+			mRequestCanceled = requestCanceled;
+		}
+	}
+	
+	private boolean requestCanceled() {
+		synchronized (mThreadLock) {
+			return mRequestCanceled;
+		}
+	}
 
 	private class ConnectThread extends Thread {
 		private String mAddress = null;
@@ -439,7 +457,6 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 		}
 
 		public void run() {
-
 			String passphrase = null;
 			String name = "device";
 			for (JSONObject deviceJObj : mDevices) {
@@ -459,7 +476,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 				mBtAdapter.cancelDiscovery();
 				BluetoothDevice device = mBtAdapter.getRemoteDevice(mAddress);
 				int connectionAttempt;
-				for (connectionAttempt = 0; connectionAttempt < MAX_CONNECTION_ATTEMPTS; connectionAttempt++) {
+				for (connectionAttempt = 0; (connectionAttempt < MAX_CONNECTION_ATTEMPTS) && !requestCanceled(); connectionAttempt++) {
 					if (connectionAttempt == 0)
 						mHandler.post(new MessageSetter(String.format(getResources().getStringArray(R.array.connection_messages)[connectionAttempt], name)));
 					else
@@ -609,7 +626,6 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 
 	@Override
 	public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-		Log.d(TAG, "onSharedPreferenceChanged");
 		if (key.equals(KEY_DEVICES)) {
 			mDevices.clear();
 			Set<String> devices = sharedPreferences.getStringSet(KEY_DEVICES, null);
@@ -622,21 +638,19 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 					}
 				}
 			}
-			Log.d(TAG, "mDevices reloaded");
 		}
 	}
 
 	class MessageSetter implements Runnable {
-
+		
 		String mMessage = null;
-
+		
 		public MessageSetter(String message) {
 			mMessage = message;
 		}
 
 		@Override
 		public void run() {
-			Log.d(TAG, "Message: " + mMessage);
 			if (mUIInterface != null) {
 				try {
 					mUIInterface.setMessage(mMessage);

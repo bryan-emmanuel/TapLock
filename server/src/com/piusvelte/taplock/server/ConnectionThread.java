@@ -29,6 +29,7 @@ import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.charset.Charset;
 import java.security.NoSuchAlgorithmException;
 import java.util.Properties;
 
@@ -48,9 +49,9 @@ public class ConnectionThread extends Thread {
 	private static final UUID sTapLockUUID = new UUID("0000110100001000800000805F9B34FB", false);
 	private LocalDevice local = null;
 	private StreamConnectionNotifier notifier;
-	private StreamConnection connection = null;
-	private InputStream inStream = null;
-	private OutputStream outStream = null;
+	private StreamConnection btConnection = null;
+	private InputStream btInStream = null;
+	private OutputStream btOutStream = null;
 
 	public ConnectionThread() {
 	}
@@ -75,20 +76,20 @@ public class ConnectionThread extends Thread {
 		while (notifier != null) {
 			TapLockServer.writeLog("waiting for connection...");
 			try {
-				connection = notifier.acceptAndOpen();
+				btConnection = notifier.acceptAndOpen();
 			} catch (IOException e) {
 				TapLockServer.writeLog("notifier.acceptAndOpen: " + e.getMessage());
-				connection = null;
+				btConnection = null;
 			}
-			if (connection != null) {
+			if (btConnection != null) {
 				TapLockServer.writeLog("new connection...");
 				try {
-					inStream = connection.openInputStream();
-					outStream = connection.openOutputStream();
+					btInStream = btConnection.openInputStream();
+					btOutStream = btConnection.openOutputStream();
 				} catch (IOException e) {
 					TapLockServer.writeLog("inStream and outStream open: " + e.getMessage());
 				}
-				if ((inStream != null) && (outStream != null)) {
+				if ((btInStream != null) && (btOutStream != null)) {
 					// send the challenge
 					String challenge = Long.toString(System.currentTimeMillis());
 					TapLockServer.writeLog("init challenge: " + challenge);
@@ -96,21 +97,21 @@ public class ConnectionThread extends Thread {
 					responseJObj.put(TapLockServer.PARAM_CHALLENGE, challenge);
 					String responseStr = responseJObj.toJSONString();
 					try {
-						outStream.write(responseStr.getBytes());
+						btOutStream.write(responseStr.getBytes());
 					} catch (IOException e) {
 						TapLockServer.writeLog("outStream.write: " + e.getMessage());
 					}
 					// prepare to receive data
-					byte[] buffer = new byte[1024];
-					int readBytes = -1;
+					byte[] btBuffer = new byte[1024];
+					int btReadBytes = -1;
 					try {
-						readBytes = inStream.read(buffer);
+						btReadBytes = btInStream.read(btBuffer);
 					} catch (IOException e) {
 						TapLockServer.writeLog("inStream.read: " + e.getMessage());
 					}
-					while (readBytes != -1) {
+					while (btReadBytes != -1) {
 						responseJObj.clear();
-						String requestStr = new String(buffer, 0, readBytes);
+						String requestStr = new String(btBuffer, 0, btReadBytes);
 						TapLockServer.writeLog("request: " + requestStr);
 						JSONObject requestJObj = null;
 						try {
@@ -143,58 +144,86 @@ public class ConnectionThread extends Thread {
 												runCommand("rundll32.exe user32.dll, LockWorkStation");
 											else {
 												// either unlock or toggle
-												//TODO: decrypt password
 												String password = "";
 												Properties prop = new Properties();
 												try {
 													prop.load(new FileInputStream(TapLockServer.sProperties));
 													if (prop.containsKey(TapLockServer.sPasswordKey))
-														password = prop.getProperty(TapLockServer.sPasswordKey);
+														password = TapLockServer.decryptString(prop.getProperty(TapLockServer.sPasswordKey));
 												} catch (FileNotFoundException e) {
 													TapLockServer.writeLog("prop load: " + e.getMessage());
 												} catch (IOException e) {
 													TapLockServer.writeLog("prop load: " + e.getMessage());
 												}
-												Socket clientSocket = null;
+												Socket cpSocket = null;
 												try {
-													clientSocket = new Socket(TapLockServer.S_LOCALHOST, TapLockServer.SERVER_PORT);
+													cpSocket = new Socket(TapLockServer.S_LOCALHOST, TapLockServer.SERVER_PORT);
 												} catch (UnknownHostException e) {
 													TapLockServer.writeLog("socket: " + e.getMessage());
 												} catch (IOException e) {
 													TapLockServer.writeLog("socket: " + e.getMessage());
 												}
-												if (clientSocket != null) {
-													InputStream inStream = null;
-													OutputStream outStream = null;
+												if (cpSocket != null) {
+													InputStream cpInStream = null;
+													OutputStream cpOutStream = null;
 													try {
-														inStream = clientSocket.getInputStream();
-														outStream = clientSocket.getOutputStream();
+														cpInStream = cpSocket.getInputStream();
+														cpOutStream = cpSocket.getOutputStream();
 													} catch (IOException e) {
 														TapLockServer.writeLog("in/out stream: " + e.getMessage());
 													}
-													if ((inStream != null) && (outStream != null)) {
-														// send the credentials
-														// the socket should return "0" if no errors
+													if ((cpInStream != null) && (cpOutStream != null)) {
+														// get the version
+														byte[] cpBuffer = new byte[1];
+														int cpReadBytes = -1;
 														try {
-															outStream.write(System.getProperty("user.name").getBytes());
-															outStream.write(password.getBytes());
+															cpReadBytes = cpInStream.read(cpBuffer);
 														} catch (IOException e) {
-															TapLockServer.writeLog("output stream: " + e.getMessage());
+															TapLockServer.writeLog("instream read: " + e.getMessage());
 														}
-														try {
-															outStream.close();
-														} catch (IOException e) {
-															TapLockServer.writeLog("output close: " + e.getMessage());
-														}
-														try {
-															inStream.close();
-														} catch (IOException e) {
-															TapLockServer.writeLog("in close: " + e.getMessage());
-														}
-														try {
-															clientSocket.close();
-														} catch (IOException e) {
-															TapLockServer.writeLog("socket close: " + e.getMessage());
+														if (cpReadBytes != -1) {
+															TapLockServer.writeLog("credential provider version: " + new String(cpBuffer, 0, cpReadBytes));
+															// pack the credentials
+															byte[] usernameBytes = System.getProperty("user.name").getBytes(Charset.forName("UTF-8"));
+															byte[] passwordBytes = password.getBytes(Charset.forName("UTF-8"));
+															byte[] credentialsBuf = new byte[TapLockServer.S_CREDBUF];
+															for (int i = 0, l = usernameBytes.length; (i < l) && (i < TapLockServer.S_USERBUF); i++)
+																credentialsBuf[i] = usernameBytes[i];
+															for (int i = 0, l = passwordBytes.length; (i < l) && (i < TapLockServer.S_PASSBUF); i++)
+																credentialsBuf[i + TapLockServer.S_USERBUF] = passwordBytes[i];
+															try {
+																cpOutStream.write(credentialsBuf);
+															} catch (IOException e) {
+																TapLockServer.writeLog("cpOutStream write: " + e.getMessage());
+															}
+															cpReadBytes = -1;
+															try {
+																cpReadBytes = cpInStream.read(credentialsBuf);
+															} catch (IOException e) {
+																TapLockServer.writeLog("cpInStream read: " + e.getMessage());
+															}
+															// the socket should return "0" if no errors
+															if (cpReadBytes != -1) {
+																String cpResult = new String(credentialsBuf, 0, cpReadBytes);
+																TapLockServer.writeLog("credential provider result: " + cpResult);
+																if (!TapLockServer.CREDENTIAL_PROVIDER_SUCCESS.equals(cpResult))
+																	responseJObj.put(TapLockServer.PARAM_ERROR, "credentials provider error");
+															}
+															try {
+																cpOutStream.close();
+															} catch (IOException e) {
+																TapLockServer.writeLog("output close: " + e.getMessage());
+															}
+															try {
+																cpInStream.close();
+															} catch (IOException e) {
+																TapLockServer.writeLog("in close: " + e.getMessage());
+															}
+															try {
+																cpSocket.close();
+															} catch (IOException e) {
+																TapLockServer.writeLog("socket close: " + e.getMessage());
+															}
 														}
 													}
 												} else
@@ -230,43 +259,43 @@ public class ConnectionThread extends Thread {
 						responseJObj.put(TapLockServer.PARAM_CHALLENGE, challenge);
 						responseStr = responseJObj.toJSONString();
 						try {
-							outStream.write(responseStr.getBytes());
+							btOutStream.write(responseStr.getBytes());
 						} catch (IOException e) {
 							TapLockServer.writeLog("outStream.write: " + e.getMessage());
 						}
 						try {
-							readBytes = inStream.read(buffer);
+							btReadBytes = btInStream.read(btBuffer);
 						} catch (IOException e) {
 							TapLockServer.writeLog("inStream.read: " + e.getMessage());
 						}
 					}
-					if (inStream != null) {
+					if (btInStream != null) {
 						try {
-							inStream.close();
+							btInStream.close();
 						} catch (IOException e) {
 							TapLockServer.writeLog("inStream.close: " + e.getMessage());
 						}
 					}
-					if (outStream != null) {
+					if (btOutStream != null) {
 						try {
-							outStream.close();
+							btOutStream.close();
 						} catch (IOException e) {
 							TapLockServer.writeLog("outStream.close: " + e.getMessage());
 						}
 					}
 				}
-				if (connection != null) {
+				if (btConnection != null) {
 					try {
-						connection.close();
+						btConnection.close();
 					} catch (IOException e) {
 						TapLockServer.writeLog("connection.close: " + e.getMessage());
 					}
-					connection = null;
+					btConnection = null;
 				}
 			}
 		}
 	}
-	
+
 	private void runCommand(String command) {
 		TapLockServer.writeLog("command: " + command);
 		Process p = null;
@@ -303,27 +332,27 @@ public class ConnectionThread extends Thread {
 			}
 			notifier = null;
 		}
-		if (inStream != null) {
+		if (btInStream != null) {
 			try {
-				inStream.close();
+				btInStream.close();
 			} catch (IOException e) {
 				TapLockServer.writeLog("inStream.close: " + e.getMessage());
 			}
 		}
-		if (outStream != null) {
+		if (btOutStream != null) {
 			try {
-				outStream.close();
+				btOutStream.close();
 			} catch (IOException e) {
 				TapLockServer.writeLog("outStream.close: " + e.getMessage());
 			}
 		}
-		if (connection != null) {
+		if (btConnection != null) {
 			try {
-				connection.close();
+				btConnection.close();
 			} catch (IOException e) {
 				TapLockServer.writeLog("connection.close: " + e.getMessage());
 			}
-			connection = null;
+			btConnection = null;
 		}
 		if (local != null)
 			local = null;

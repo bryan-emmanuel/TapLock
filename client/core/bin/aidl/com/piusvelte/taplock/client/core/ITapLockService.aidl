@@ -26,4 +26,5 @@ interface ITapLockService {
 	void pairDevice(String address);
 	void stop();
 	void enableBluetooth();
+	void cancelRequest();
 }

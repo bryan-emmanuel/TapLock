@@ -120,6 +120,13 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 		mProgressDialog.setButton(getString(R.string.close), new DialogInterface.OnClickListener() {
 			@Override
 			public void onClick(DialogInterface dialog, int which) {
+				if (mServiceInterface != null) {
+					try {
+						mServiceInterface.cancelRequest();
+					} catch (RemoteException e) {
+						Log.e(TAG, e.toString());
+					}
+				}
 				dialog.cancel();
 			}
 		});

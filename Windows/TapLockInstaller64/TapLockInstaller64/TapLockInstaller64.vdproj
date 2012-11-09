@@ -243,7 +243,7 @@
         "Product"
         {
         "Name" = "8:Microsoft Visual Studio"
-        "ProductName" = "8:Tap Lock Server"
+        "ProductName" = "8:Tap Lock"
         "ProductCode" = "8:{AB9137CD-F75E-45DE-AB75-19C6E6CC90F7}"
         "PackageCode" = "8:{9FA7B462-0703-4A76-8D97-D977A0799E6A}"
         "UpgradeCode" = "8:{9C65F7E7-5766-49F9-ABE1-196B49BB85DB}"
@@ -256,7 +256,7 @@
         "Manufacturer" = "8:Bryan Emmanuel"
         "ARPHELPTELEPHONE" = "8:"
         "ARPHELPLINK" = "8:"
-        "Title" = "8:Tap Lock Server"
+        "Title" = "8:Tap Lock"
         "Subject" = "8:"
         "ARPCONTACT" = "8:Bryan Emmanuel"
         "Keywords" = "8:"

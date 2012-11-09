@@ -1,0 +1,1 @@
+java -jar "%PROGRAMFILES%\Tap Lock Server\TapLockServer.jar"

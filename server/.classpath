@@ -9,6 +9,7 @@
 	<classpathentry kind="lib" path="libs/bluecove-emu-2.1.1-SNAPSHOT.jar"/>
 	<classpathentry kind="lib" path="libs/bluecove-gpl-2.1.1-SNAPSHOT.jar"/>
 	<classpathentry kind="lib" path="libs/commons-codec-1.7.jar"/>
+	<classpathentry kind="lib" path="libs/bcprov-jdk15on-147.jar"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

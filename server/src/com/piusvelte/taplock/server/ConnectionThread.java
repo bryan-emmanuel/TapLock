@@ -207,7 +207,7 @@ public class ConnectionThread extends Thread {
 																String cpResult = new String(credentialsBuf, 0, cpReadBytes);
 																TapLockServer.writeLog("credential provider result: " + cpResult);
 																if (!TapLockServer.CREDENTIAL_PROVIDER_SUCCESS.equals(cpResult))
-																	responseJObj.put(TapLockServer.PARAM_ERROR, "credentials provider error");
+																	responseJObj.put(TapLockServer.PARAM_ERROR, "Authentication error, is the Windows password set in Tap Lock Server?");
 															}
 															try {
 																cpOutStream.close();

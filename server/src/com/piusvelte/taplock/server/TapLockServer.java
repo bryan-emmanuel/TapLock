@@ -79,6 +79,7 @@ public class TapLockServer implements Daemon {
 	public static final String PARAM_CHALLENGE = "challenge";
 	public static final String PARAM_ERROR = "error";
 
+	private static final String TAP_LOCK = "taplock";
 	protected static final String sPassphraseKey = "passphrase";
 	protected static final String sDisplaySystemTrayKey = "displaysystemtray";
 	protected static final String sDebuggingKey = "debugging";
@@ -111,9 +112,9 @@ public class TapLockServer implements Daemon {
 	static {
 		OS = System.getProperty("os.name").startsWith("Windows") ? OS_WIN : OS_NIX;
 		if (OS == OS_WIN)
-			APP_PATH = System.getenv("APPDATA") + "\\Tap Lock Server\\";
+			APP_PATH = System.getenv("APPDATA") + "\\Tap Lock\\";
 		else if (OS == OS_NIX)
-			APP_PATH = System.getProperty("user.home") + "/.taplockserver/";
+			APP_PATH = System.getProperty("user.home") + "/.taplock/";
 		else {
 			String decJarPath = "";
 			try {
@@ -315,17 +316,39 @@ public class TapLockServer implements Daemon {
 	}
 
 	protected static void setPassphrase(String passphrase) {
-		sPassphrase = passphrase;
 		Properties prop = new Properties();
 		try {
 			prop.load(new FileInputStream(sProperties));
-			prop.setProperty(sPassphraseKey, sPassphrase);
+			prop.setProperty(sPassphraseKey, passphrase);
 			prop.store(new FileOutputStream(sProperties), null);
 		} catch (FileNotFoundException e) {
 			writeLog("prop load: " + e.getMessage());
 		} catch (IOException e) {
 			writeLog("prop load: " + e.getMessage());
 		}
+		if (OS == OS_WIN) {
+			KeyStore ks = getKeyStore();
+			if (ks != null) {
+				SecretKey sk = getSecretKey(ks);
+				if (ks != null) {
+					try {
+						ks.setKeyEntry(TAP_LOCK, sk, sPassphrase.toCharArray(), null);
+						ks.store(new FileOutputStream(sKeystore), sPassphrase.toCharArray());
+					} catch (KeyStoreException e) {
+						writeLog("change key password: " + e.getMessage());
+					} catch (NoSuchAlgorithmException e) {
+						writeLog("change key password: " + e.getMessage());
+					} catch (CertificateException e) {
+						writeLog("change key password: " + e.getMessage());
+					} catch (FileNotFoundException e) {
+						writeLog("change key password: " + e.getMessage());
+					} catch (IOException e) {
+						writeLog("change key password: " + e.getMessage());
+					}
+				}
+			}
+		}
+		sPassphrase = passphrase;
 	}
 
 	protected static String getToggleAction() {
@@ -424,14 +447,19 @@ public class TapLockServer implements Daemon {
 		if (sLogFileHandler != null)
 			sLogFileHandler.close();
 	}
-	protected static SecretKey getSecretKey() {
-		SecretKey sk = null;
+
+	protected static KeyStore getKeyStore() {
 		KeyStore ks = null;
 		try {
 			ks = KeyStore.getInstance("BKS");
 		} catch (KeyStoreException e) {
-			writeLog("encryptString: " + e.getMessage());
+			writeLog("getKeyStore: " + e.getMessage());
 		}
+		return ks;
+	}
+
+	protected static SecretKey getSecretKey(KeyStore ks) {
+		SecretKey sk = null;
 		if (ks != null) {
 			try {
 				ks.load(new FileInputStream(sKeystore), sPassphrase.toCharArray());
@@ -445,7 +473,7 @@ public class TapLockServer implements Daemon {
 				writeLog("encryptString: " + e.getMessage());
 			}
 			try {
-				sk = (SecretKey) ks.getKey(sPassphrase, sPassphrase.toCharArray());
+				sk = (SecretKey) ks.getKey(TAP_LOCK, sPassphrase.toCharArray());
 			} catch (UnrecoverableKeyException e) {
 				writeLog("encryptString: " + e.getMessage());
 			} catch (KeyStoreException e) {
@@ -459,32 +487,27 @@ public class TapLockServer implements Daemon {
 
 	protected static String encryptString(String decStr) {
 		String encStr = null;
-		SecretKey sk = getSecretKey();
-		if (sk == null) {
-			// create key
-			KeyGenerator kgen = null;
-			try {
-				kgen = KeyGenerator.getInstance("AES");
-			} catch (NoSuchAlgorithmException e) {
-				e.printStackTrace();
-			}
-			if (kgen != null) {
-				kgen.init(256);
-				sk = kgen.generateKey();
-				// generate password
-				SecureRandom sr = new SecureRandom();
-				sPassphrase = new BigInteger(256, sr).toString(8);
-				// create a keystore
-				KeyStore ks = null;
+		KeyStore ks = getKeyStore();
+		if (ks != null) {
+			SecretKey sk = getSecretKey(ks);
+			if (sk == null) {
+				// create key
+				KeyGenerator kgen = null;
 				try {
-					ks = KeyStore.getInstance("BKS");
-				} catch (KeyStoreException e) {
-					writeLog("encryptString: " + e.getMessage());
+					kgen = KeyGenerator.getInstance("AES");
+				} catch (NoSuchAlgorithmException e) {
+					e.printStackTrace();
 				}
-				if (ks != null) {
+				if (kgen != null) {
+					kgen.init(256);
+					sk = kgen.generateKey();
+					// generate password
+					SecureRandom sr = new SecureRandom();
+					sPassphrase = new BigInteger(256, sr).toString(8);
+					// create a keystore
 					try {
 						ks.load(null, sPassphrase.toCharArray());
-						ks.setKeyEntry(sPassphrase, sk, sPassphrase.toCharArray(), null);
+						ks.setKeyEntry(TAP_LOCK, sk, sPassphrase.toCharArray(), null);
 						ks.store(new FileOutputStream(sKeystore), sPassphrase.toCharArray());
 					} catch (NoSuchAlgorithmException e) {
 						writeLog("encryptString: " + e.getMessage());
@@ -497,25 +520,25 @@ public class TapLockServer implements Daemon {
 					}
 				}
 			}
-		}
-		if ((sk != null) && (decStr != null)) {
-			Cipher cipher;
-			try {
-				cipher = Cipher.getInstance("AES");
-				cipher.init(Cipher.ENCRYPT_MODE, sk);
-				return new String(Base64.encodeBase64(cipher.doFinal(decStr.getBytes("UTF-8"))));
-			} catch (NoSuchAlgorithmException e) {
-				writeLog("encryptString: " + e.getMessage());
-			} catch (NoSuchPaddingException e) {
-				writeLog("encryptString: " + e.getMessage());
-			} catch (InvalidKeyException e) {
-				writeLog("encryptString: " + e.getMessage());
-			} catch (IllegalBlockSizeException e) {
-				writeLog("encryptString: " + e.getMessage());
-			} catch (BadPaddingException e) {
-				writeLog("encryptString: " + e.getMessage());
-			} catch (UnsupportedEncodingException e) {
-				writeLog("encryptString: " + e.getMessage());
+			if ((sk != null) && (decStr != null)) {
+				Cipher cipher;
+				try {
+					cipher = Cipher.getInstance("AES");
+					cipher.init(Cipher.ENCRYPT_MODE, sk);
+					return new String(Base64.encodeBase64(cipher.doFinal(decStr.getBytes("UTF-8"))));
+				} catch (NoSuchAlgorithmException e) {
+					writeLog("encryptString: " + e.getMessage());
+				} catch (NoSuchPaddingException e) {
+					writeLog("encryptString: " + e.getMessage());
+				} catch (InvalidKeyException e) {
+					writeLog("encryptString: " + e.getMessage());
+				} catch (IllegalBlockSizeException e) {
+					writeLog("encryptString: " + e.getMessage());
+				} catch (BadPaddingException e) {
+					writeLog("encryptString: " + e.getMessage());
+				} catch (UnsupportedEncodingException e) {
+					writeLog("encryptString: " + e.getMessage());
+				}
 			}
 		}
 		return encStr;
@@ -523,25 +546,28 @@ public class TapLockServer implements Daemon {
 
 	protected static String decryptString(String encStr) {
 		String decStr = null;
-		SecretKey sk = getSecretKey();
-		if (sk != null) {
-			Cipher cipher;
-			try {
-				cipher = Cipher.getInstance("AES");
-				cipher.init(Cipher.DECRYPT_MODE, sk);
-				return new String(cipher.doFinal(Base64.decodeBase64(encStr)), "UTF-8");
-			} catch (NoSuchAlgorithmException e) {
-				writeLog("encryptString: " + e.getMessage());
-			} catch (NoSuchPaddingException e) {
-				writeLog("encryptString: " + e.getMessage());
-			} catch (InvalidKeyException e) {
-				writeLog("encryptString: " + e.getMessage());
-			} catch (UnsupportedEncodingException e) {
-				writeLog("encryptString: " + e.getMessage());
-			} catch (IllegalBlockSizeException e) {
-				writeLog("encryptString: " + e.getMessage());
-			} catch (BadPaddingException e) {
-				writeLog("encryptString: " + e.getMessage());
+		KeyStore ks = getKeyStore();
+		if (ks != null) {
+			SecretKey sk = getSecretKey(ks);
+			if (sk != null) {
+				Cipher cipher;
+				try {
+					cipher = Cipher.getInstance("AES");
+					cipher.init(Cipher.DECRYPT_MODE, sk);
+					return new String(cipher.doFinal(Base64.decodeBase64(encStr)), "UTF-8");
+				} catch (NoSuchAlgorithmException e) {
+					writeLog("encryptString: " + e.getMessage());
+				} catch (NoSuchPaddingException e) {
+					writeLog("encryptString: " + e.getMessage());
+				} catch (InvalidKeyException e) {
+					writeLog("encryptString: " + e.getMessage());
+				} catch (UnsupportedEncodingException e) {
+					writeLog("encryptString: " + e.getMessage());
+				} catch (IllegalBlockSizeException e) {
+					writeLog("encryptString: " + e.getMessage());
+				} catch (BadPaddingException e) {
+					writeLog("encryptString: " + e.getMessage());
+				}
 			}
 		}
 		return decStr;

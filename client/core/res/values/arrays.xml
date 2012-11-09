@@ -51,4 +51,14 @@
 	    <item>&#8230;ringing&#8230;</item>
 	    <item>&#8230;still ringing&#8230;</item>
 	</string-array>
+	<string-array name="installer_entries">
+	    <item>Windows \u0028x86\u0029</item>
+	    <item>Windows \u002864\u0029</item>
+	    <item>Other</item>
+	</string-array>
+	<string-array name="installer_values">
+	    <item>TapLockInstaller.msi</item>
+	    <item>TapLockInstaller64.msi</item>
+	    <item>TapLockServer.jar</item>
+	</string-array>
 </resources>

@@ -14,6 +14,8 @@ public final class R {
         public static int connection_messages=0x7f050004;
         public static int download_entries=0x7f050002;
         public static int download_values=0x7f050003;
+        public static int installer_entries=0x7f050005;
+        public static int installer_values=0x7f050006;
     }
     public static final class attr {
         /** <p>Must be a color value, in the form of "<code>#<i>rgb</i></code>", "<code>#<i>argb</i></code>",
@@ -99,7 +101,7 @@ containing a value of this type.
         public static int button_license=0x7f07000f;
         public static int chk_sec=0x7f070002;
         public static int close=0x7f070013;
-        public static int device_uri=0x7f07001a;
+        public static int device_uri=0x7f07001c;
         public static int email_instructions=0x7f07000e;
         public static int info_newdevice=0x7f070016;
         public static int info_noinfo=0x7f070014;
@@ -107,12 +109,14 @@ containing a value of this type.
         public static int license=0x7f070010;
         public static int mn_remove=0x7f070006;
         public static int msg_device_not_conf=0x7f07000b;
-        public static int msg_deviceexists=0x7f07001b;
+        public static int msg_deviceexists=0x7f07001d;
         public static int msg_enablebt=0x7f07000a;
-        public static int msg_nodevices=0x7f07001c;
-        public static int msg_oops=0x7f070018;
+        public static int msg_nodevices=0x7f07001e;
+        public static int msg_oops=0x7f07001a;
+        public static int msg_pickdownloader=0x7f070019;
+        public static int msg_pickinstaller=0x7f070018;
         public static int msg_scanning=0x7f070004;
-        public static int msg_sdcardunavailable=0x7f070019;
+        public static int msg_sdcardunavailable=0x7f07001b;
         public static int no_devices=0x7f070005;
         public static int ok=0x7f070012;
         public static int title_toggle=0x7f070011;

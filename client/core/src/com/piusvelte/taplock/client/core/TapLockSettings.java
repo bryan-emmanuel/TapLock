@@ -105,7 +105,6 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 	private ArrayList<JSONObject> mUnpairedDevices = new ArrayList<JSONObject>();
 	private boolean mShowTapLockSettingsInfo = true;
 	private static final int REMOVE_ID = Menu.FIRST;
-	private static final String TAPLOCKSERVER = "TapLockServer.jar";
 
 	// NFC
 	private NfcAdapter mNfcAdapter = null;
@@ -455,26 +454,40 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 				@Override
 				public void onClick(DialogInterface dialog, int which) {
 					dialog.cancel();
+					
 					mDialog = new AlertDialog.Builder(TapLockSettings.this)
-					.setTitle(R.string.button_getserver)
-					.setItems(R.array.download_entries, new DialogInterface.OnClickListener() {
-
+					.setTitle(R.string.msg_pickinstaller)
+					.setItems(R.array.installer_entries, new DialogInterface.OnClickListener() {
+						
 						@Override
 						public void onClick(DialogInterface dialog, int which) {
 							dialog.cancel();
-							String action = getResources().getStringArray(R.array.download_values)[which];
-							if (ACTION_DOWNLOAD_SDCARD.equals(action) && copyFileToSDCard(TAPLOCKSERVER))
-								Toast.makeText(TapLockSettings.this, "Done!", Toast.LENGTH_SHORT).show();
-							else if (ACTION_DOWNLOAD_EMAIL.equals(action) && copyFileToSDCard(TAPLOCKSERVER)) {
-								Intent emailIntent = new Intent(android.content.Intent.ACTION_SEND);
-								emailIntent.setType("application/java-archive");
-								emailIntent.putExtra(Intent.EXTRA_TEXT, getString(R.string.email_instructions));
-								emailIntent.putExtra(Intent.EXTRA_SUBJECT, getString(R.string.app_name));
-								emailIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse("file://" + Environment.getExternalStorageDirectory().getPath() + "/" + TAPLOCKSERVER));
-								startActivity(Intent.createChooser(emailIntent, getString(R.string.button_getserver)));
-							}
-						}
+							final String installer_file = getResources().getStringArray(R.array.installer_values)[which];
 
+							mDialog = new AlertDialog.Builder(TapLockSettings.this)
+							.setTitle(R.string.msg_pickdownloader)
+							.setItems(R.array.download_entries, new DialogInterface.OnClickListener() {
+
+								@Override
+								public void onClick(DialogInterface dialog, int which) {
+									dialog.cancel();
+									String action = getResources().getStringArray(R.array.download_values)[which];
+									if (ACTION_DOWNLOAD_SDCARD.equals(action) && copyFileToSDCard(installer_file))
+										Toast.makeText(TapLockSettings.this, "Done!", Toast.LENGTH_SHORT).show();
+									else if (ACTION_DOWNLOAD_EMAIL.equals(action) && copyFileToSDCard(installer_file)) {
+										Intent emailIntent = new Intent(android.content.Intent.ACTION_SEND);
+										emailIntent.setType("application/java-archive");
+										emailIntent.putExtra(Intent.EXTRA_TEXT, getString(R.string.email_instructions));
+										emailIntent.putExtra(Intent.EXTRA_SUBJECT, getString(R.string.app_name));
+										emailIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse("file://" + Environment.getExternalStorageDirectory().getPath() + "/" + installer_file));
+										startActivity(Intent.createChooser(emailIntent, getString(R.string.button_getserver)));
+									}
+								}
+
+							})
+							.create();
+							mDialog.show();
+						}
 					})
 					.create();
 					mDialog.show();
@@ -507,7 +520,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 		else {
 			try {
 				InputStream in = assetManager.open(filename);
-				OutputStream out = new FileOutputStream(Environment.getExternalStorageDirectory().getPath() + "/" + TAPLOCKSERVER);
+				OutputStream out = new FileOutputStream(Environment.getExternalStorageDirectory().getPath() + "/" + filename);
 				byte[] buffer = new byte[1024];
 				int read;
 				while ((read = in.read(buffer)) != -1)

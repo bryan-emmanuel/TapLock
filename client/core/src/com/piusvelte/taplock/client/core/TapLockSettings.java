@@ -38,6 +38,7 @@ import static com.piusvelte.taplock.client.core.TapLock.EXTRA_INFO;
 import static com.piusvelte.taplock.client.core.TapLock.EXTRA_DEVICE_NAME;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_DEVICES;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_PREFS;
+import static com.piusvelte.taplock.client.core.TapLock.KEY_HASUPDATE;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -293,7 +294,8 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 			}
 			mInWriteMode = false;
 		} else {
-			onSharedPreferenceChanged(getSharedPreferences(KEY_PREFS, Context.MODE_PRIVATE), KEY_DEVICES);
+			SharedPreferences sp = getSharedPreferences(KEY_PREFS, Context.MODE_PRIVATE);
+			onSharedPreferenceChanged(sp, KEY_DEVICES);
 			// check if configuring a widget
 			if (intent != null) {
 				Bundle extras = intent.getExtras();
@@ -332,11 +334,66 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 			startService(TapLock.getPackageIntent(this, TapLockService.class));
 			bindService(TapLock.getPackageIntent(this, TapLockService.class), this, BIND_AUTO_CREATE);
 
+			boolean hasUpdate = sp.getBoolean(KEY_HASUPDATE, true);
 			if (mShowTapLockSettingsInfo && (mDevices.size() == 0)) {
+				if (hasUpdate)
+					sp.edit().putBoolean(KEY_HASUPDATE, false).commit();
 				mShowTapLockSettingsInfo = false;
 				Intent i = TapLock.getPackageIntent(this, TapLockInfo.class);
 				i.putExtra(EXTRA_INFO, getString(R.string.info_taplocksettings));
 				startActivity(i);
+			} else if (hasUpdate) {
+				// TapLockServer has been updated
+				sp.edit().putBoolean(KEY_HASUPDATE, false).commit();
+				mDialog = new AlertDialog.Builder(TapLockSettings.this)
+				.setTitle(R.string.ttl_hasupdate)
+				.setMessage(R.string.msg_hasupdate)
+				.setNeutralButton(R.string.button_getserver, new DialogInterface.OnClickListener() {
+
+					@Override
+					public void onClick(DialogInterface dialog, int which) {
+						dialog.cancel();
+						
+						mDialog = new AlertDialog.Builder(TapLockSettings.this)
+						.setTitle(R.string.msg_pickinstaller)
+						.setItems(R.array.installer_entries, new DialogInterface.OnClickListener() {
+							
+							@Override
+							public void onClick(DialogInterface dialog, int which) {
+								dialog.cancel();
+								final String installer_file = getResources().getStringArray(R.array.installer_values)[which];
+
+								mDialog = new AlertDialog.Builder(TapLockSettings.this)
+								.setTitle(R.string.msg_pickdownloader)
+								.setItems(R.array.download_entries, new DialogInterface.OnClickListener() {
+
+									@Override
+									public void onClick(DialogInterface dialog, int which) {
+										dialog.cancel();
+										String action = getResources().getStringArray(R.array.download_values)[which];
+										if (ACTION_DOWNLOAD_SDCARD.equals(action) && copyFileToSDCard(installer_file))
+											Toast.makeText(TapLockSettings.this, "Done!", Toast.LENGTH_SHORT).show();
+										else if (ACTION_DOWNLOAD_EMAIL.equals(action) && copyFileToSDCard(installer_file)) {
+											Intent emailIntent = new Intent(android.content.Intent.ACTION_SEND);
+											emailIntent.setType("application/java-archive");
+											emailIntent.putExtra(Intent.EXTRA_TEXT, getString(R.string.email_instructions));
+											emailIntent.putExtra(Intent.EXTRA_SUBJECT, getString(R.string.app_name));
+											emailIntent.putExtra(Intent.EXTRA_STREAM, Uri.parse("file://" + Environment.getExternalStorageDirectory().getPath() + "/" + installer_file));
+											startActivity(Intent.createChooser(emailIntent, getString(R.string.button_getserver)));
+										}
+									}
+
+								})
+								.create();
+								mDialog.show();
+							}
+						})
+						.create();
+						mDialog.show();
+					}
+				})
+				.create();
+				mDialog.show();
 			}
 		}
 	}

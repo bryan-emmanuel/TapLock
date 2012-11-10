@@ -60,6 +60,7 @@ public class TapLock {
 	public static final String KEY_WIDGETS = "widgets";
 	public static final String KEY_DEVICES = "devices";
 	public static final String KEY_PREFS = "taplock";
+	public static final String KEY_HASUPDATE = "hasupdate";
 	public static final String DEFAULT_PASSPHRASE = "TapLock";
 	
 	private TapLock() {}

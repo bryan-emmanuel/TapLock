@@ -69,7 +69,9 @@ public class ConnectionThread extends Thread {
 			String url = "btspp://localhost:" + sTapLockUUID.toString() + ";name=" + sSPD;
 			notifier = (StreamConnectionNotifier) Connector.open(url);
 		} catch (Exception e) {
+			// no bluetooth present
 			TapLockServer.writeLog("notifier init: " + e.getMessage());
+			TapLockServer.shutdown();
 			return;
 		}
 		JSONParser jsonParser = new JSONParser();

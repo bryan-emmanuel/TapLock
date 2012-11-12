@@ -133,13 +133,13 @@
             "SourcePath" = "8:TapLockCredentialProvider.dll"
             "TargetName" = "8:TapLockCredentialProvider.dll"
             "Tag" = "8:"
-            "Folder" = "8:_5FE0F864D6D246AB9D28E60F5F6B7FC1"
+            "Folder" = "8:_926C9FF0F9DE4D618B0CE98FDEA9FA2F"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
             "ReadOnly" = "11:FALSE"
             "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
+            "System" = "11:TRUE"
             "Permanent" = "11:FALSE"
             "SharedLegacy" = "11:FALSE"
             "PackageAs" = "3:1"
@@ -205,13 +205,13 @@
                 {
                 }
             }
-            "{1525181F-901A-416C-8A58-119130FE478E}:_5FE0F864D6D246AB9D28E60F5F6B7FC1"
+            "{1525181F-901A-416C-8A58-119130FE478E}:_926C9FF0F9DE4D618B0CE98FDEA9FA2F"
             {
-            "Name" = "8:#1914"
+            "Name" = "8:#1936"
             "AlwaysCreate" = "11:FALSE"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
-            "Property" = "8:SystemFolder"
+            "Property" = "8:System64Folder"
                 "Folders"
                 {
                 }
@@ -245,7 +245,7 @@
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:Tap Lock"
         "ProductCode" = "8:{AB9137CD-F75E-45DE-AB75-19C6E6CC90F7}"
-        "PackageCode" = "8:{9FA7B462-0703-4A76-8D97-D977A0799E6A}"
+        "PackageCode" = "8:{F26CEA19-5541-4988-9227-C44F2C25F8D1}"
         "UpgradeCode" = "8:{9C65F7E7-5766-49F9-ABE1-196B49BB85DB}"
         "AspNetVersion" = "8:4.0.30319.0"
         "RestartWWWService" = "11:FALSE"
@@ -343,6 +343,14 @@
                                                                         }
                                                                         "Values"
                                                                         {
+                                                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_1F570FCC14A247D2BF6FDBFD475EDDBE"
+                                                                            {
+                                                                            "Name" = "8:"
+                                                                            "Condition" = "8:"
+                                                                            "Transitive" = "11:FALSE"
+                                                                            "ValueTypes" = "3:1"
+                                                                            "Value" = "8:TapLockCredentialProvider"
+                                                                            }
                                                                         }
                                                                     }
                                                                 }
@@ -381,34 +389,6 @@
             {
                 "Keys"
                 {
-                    "{60EA8692-D2D5-43EB-80DC-7906BF13D6EF}:_A90C726548ED446B81BDFBE83991E897"
-                    {
-                    "Name" = "8:Software"
-                    "Condition" = "8:"
-                    "AlwaysCreate" = "11:FALSE"
-                    "DeleteAtUninstall" = "11:FALSE"
-                    "Transitive" = "11:FALSE"
-                        "Keys"
-                        {
-                            "{60EA8692-D2D5-43EB-80DC-7906BF13D6EF}:_86924111120F4B71806A0FBC0F554454"
-                            {
-                            "Name" = "8:[Manufacturer]"
-                            "Condition" = "8:"
-                            "AlwaysCreate" = "11:FALSE"
-                            "DeleteAtUninstall" = "11:FALSE"
-                            "Transitive" = "11:FALSE"
-                                "Keys"
-                                {
-                                }
-                                "Values"
-                                {
-                                }
-                            }
-                        }
-                        "Values"
-                        {
-                        }
-                    }
                 }
             }
             "HKCR"
@@ -453,9 +433,9 @@
                                             "ValueTypes" = "3:1"
                                             "Value" = "8:Apartment"
                                             }
-                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_42DE6A5468B84C7498EBCE566FBAB964"
+                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_EC1A9B195E864E218AB59A17365285D6"
                                             {
-                                            "Name" = "8:(Default)"
+                                            "Name" = "8:"
                                             "Condition" = "8:"
                                             "Transitive" = "11:FALSE"
                                             "ValueTypes" = "3:1"

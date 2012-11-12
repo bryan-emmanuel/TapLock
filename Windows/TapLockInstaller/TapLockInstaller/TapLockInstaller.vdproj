@@ -139,7 +139,7 @@
             "Vital" = "11:TRUE"
             "ReadOnly" = "11:FALSE"
             "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
+            "System" = "11:TRUE"
             "Permanent" = "11:FALSE"
             "SharedLegacy" = "11:FALSE"
             "PackageAs" = "3:1"
@@ -343,6 +343,14 @@
                                                                         }
                                                                         "Values"
                                                                         {
+                                                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_B773892082E5441AB69B58A17DF702B4"
+                                                                            {
+                                                                            "Name" = "8:"
+                                                                            "Condition" = "8:"
+                                                                            "Transitive" = "11:FALSE"
+                                                                            "ValueTypes" = "3:1"
+                                                                            "Value" = "8:TapLockCredentialProvider"
+                                                                            }
                                                                         }
                                                                     }
                                                                 }
@@ -381,34 +389,6 @@
             {
                 "Keys"
                 {
-                    "{60EA8692-D2D5-43EB-80DC-7906BF13D6EF}:_A90C726548ED446B81BDFBE83991E897"
-                    {
-                    "Name" = "8:Software"
-                    "Condition" = "8:"
-                    "AlwaysCreate" = "11:FALSE"
-                    "DeleteAtUninstall" = "11:FALSE"
-                    "Transitive" = "11:FALSE"
-                        "Keys"
-                        {
-                            "{60EA8692-D2D5-43EB-80DC-7906BF13D6EF}:_86924111120F4B71806A0FBC0F554454"
-                            {
-                            "Name" = "8:[Manufacturer]"
-                            "Condition" = "8:"
-                            "AlwaysCreate" = "11:FALSE"
-                            "DeleteAtUninstall" = "11:FALSE"
-                            "Transitive" = "11:FALSE"
-                                "Keys"
-                                {
-                                }
-                                "Values"
-                                {
-                                }
-                            }
-                        }
-                        "Values"
-                        {
-                        }
-                    }
                 }
             }
             "HKCR"
@@ -453,9 +433,9 @@
                                             "ValueTypes" = "3:1"
                                             "Value" = "8:Apartment"
                                             }
-                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_42DE6A5468B84C7498EBCE566FBAB964"
+                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_159D45C81BDC4F62881291D9C14D7B96"
                                             {
-                                            "Name" = "8:(Default)"
+                                            "Name" = "8:"
                                             "Condition" = "8:"
                                             "Transitive" = "11:FALSE"
                                             "ValueTypes" = "3:1"

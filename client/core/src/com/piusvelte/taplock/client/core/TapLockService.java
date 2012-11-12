@@ -81,7 +81,6 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 	private static final UUID sTapLockUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 	private int[] mThreadLock = new int[0];
 	private static final int MAX_CONNECTION_ATTEMPTS = 4;
-	private boolean mRequestCanceled = true;
 	private Handler mHandler = new Handler();
 
 	private ITapLockUI mUIInterface;
@@ -133,7 +132,10 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 
 		@Override
 		public void cancelRequest() throws RemoteException {
-			setRequestCanceled(false);
+			synchronized (mThreadLock) {
+				if (mConnectThread != null)
+					mConnectThread.cancelRequest();
+			}
 		}
 	};
 
@@ -400,7 +402,6 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 	}
 
 	private void requestWrite(String address, String action, String passphrase) {
-		setRequestCanceled(true);
 		if (mBtAdapter.isEnabled()) {
 			synchronized (mThreadLock) {
 				if (mConnectThread != null)
@@ -427,18 +428,6 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 				mConnectThread.shutdown();
 		}
 	}
-	
-	private void setRequestCanceled(boolean requestCanceled) {
-		synchronized (mThreadLock) {
-			mRequestCanceled = requestCanceled;
-		}
-	}
-	
-	private boolean requestCanceled() {
-		synchronized (mThreadLock) {
-			return mRequestCanceled;
-		}
-	}
 
 	private class ConnectThread extends Thread {
 		private String mAddress = null;
@@ -447,6 +436,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 		private OutputStream outStream = null;
 		private String mAction = null;
 		private String mNewPassphrase = null;
+		private boolean mRequestCanceled = false;
 
 		public ConnectThread(String address, String action, String newPassphrase) {
 			mAction = action;
@@ -476,7 +466,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 				mBtAdapter.cancelDiscovery();
 				BluetoothDevice device = mBtAdapter.getRemoteDevice(mAddress);
 				int connectionAttempt;
-				for (connectionAttempt = 0; (connectionAttempt < MAX_CONNECTION_ATTEMPTS) && !requestCanceled(); connectionAttempt++) {
+				for (connectionAttempt = 0; (connectionAttempt < MAX_CONNECTION_ATTEMPTS) && !mRequestCanceled; connectionAttempt++) {
 					if (connectionAttempt == 0)
 						mHandler.post(new MessageSetter(String.format(getResources().getStringArray(R.array.connection_messages)[connectionAttempt], name)));
 					else
@@ -592,6 +582,10 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 		// convenience method for shutting down thread
 		public void shutdown() {
 			shutdown(true);
+		}
+		
+		public void cancelRequest() {
+			mRequestCanceled = true;
 		}
 
 		public void shutdown(boolean pass) {

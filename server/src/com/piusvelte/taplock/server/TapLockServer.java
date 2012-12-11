@@ -144,12 +144,10 @@ public class TapLockServer implements Daemon {
 		} else
 			cmd = "start";
 
-		if ("start".equals(cmd)) {
+		if ("start".equals(cmd))
 			initialize();
-			while (!isShutdown());
-		} else
+		else
 			shutdown();
-		System.exit(0);
 	}
 
 	private static void initialize() {
@@ -445,12 +443,6 @@ public class TapLockServer implements Daemon {
 		shutdown();
 	}
 
-	private static boolean isShutdown() {
-		synchronized (sConnectionThreadLock) {
-			return (sConnectionThread == null);
-		}
-	}
-
 	public static void shutdown() {
 		synchronized (sConnectionThreadLock) {
 			if (sConnectionThread != null) {
@@ -462,6 +454,7 @@ public class TapLockServer implements Daemon {
 			sLogger = null;
 		if (sLogFileHandler != null)
 			sLogFileHandler.close();
+		System.exit(0);
 	}
 
 	protected static KeyStore getKeyStore() {

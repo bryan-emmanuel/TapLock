@@ -38,7 +38,8 @@ import static com.piusvelte.taplock.client.core.TapLock.EXTRA_INFO;
 import static com.piusvelte.taplock.client.core.TapLock.EXTRA_DEVICE_NAME;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_DEVICES;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_PREFS;
-import static com.piusvelte.taplock.client.core.TapLock.KEY_HASUPDATE;
+import static com.piusvelte.taplock.client.core.TapLock.KEY_SERVER_VERSION;
+import static com.piusvelte.taplock.client.core.TapLock.SERVER_VERSION;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -334,17 +335,17 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 			startService(TapLock.getPackageIntent(this, TapLockService.class));
 			bindService(TapLock.getPackageIntent(this, TapLockService.class), this, BIND_AUTO_CREATE);
 
-			boolean hasUpdate = sp.getBoolean(KEY_HASUPDATE, true);
+			int serverVersion = sp.getInt(KEY_SERVER_VERSION, 0);
 			if (mShowTapLockSettingsInfo && (mDevices.size() == 0)) {
-				if (hasUpdate)
-					sp.edit().putBoolean(KEY_HASUPDATE, false).commit();
+				if (serverVersion < SERVER_VERSION)
+					sp.edit().putInt(KEY_SERVER_VERSION, SERVER_VERSION).commit();
 				mShowTapLockSettingsInfo = false;
 				Intent i = TapLock.getPackageIntent(this, TapLockInfo.class);
 				i.putExtra(EXTRA_INFO, getString(R.string.info_taplocksettings));
 				startActivity(i);
-			} else if (hasUpdate) {
+			} else if (serverVersion < SERVER_VERSION) {
 				// TapLockServer has been updated
-				sp.edit().putBoolean(KEY_HASUPDATE, false).commit();
+				sp.edit().putInt(KEY_SERVER_VERSION, SERVER_VERSION).commit();
 				mDialog = new AlertDialog.Builder(TapLockSettings.this)
 				.setTitle(R.string.ttl_hasupdate)
 				.setMessage(R.string.msg_hasupdate)

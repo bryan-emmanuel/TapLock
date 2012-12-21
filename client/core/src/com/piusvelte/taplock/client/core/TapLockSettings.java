@@ -783,7 +783,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 	}
 	
 	private void storeDevices() {
-		TapLock.storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), mDevices);
+		TapLock.storeDevices(this, getSharedPreferences(KEY_PREFS, MODE_PRIVATE), mDevices);
 		String[] deviceNames = TapLock.getDeviceNames(mDevices);
 		setListAdapter(new ArrayAdapter<String>(TapLockSettings.this, android.R.layout.simple_list_item_1, deviceNames));
 	}

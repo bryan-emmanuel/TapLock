@@ -257,7 +257,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 									e.printStackTrace();
 								}
 								mDevices.add(i, deviceJObj);
-								TapLock.storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), mDevices);
+								TapLock.storeDevices(this, getSharedPreferences(KEY_PREFS, MODE_PRIVATE), mDevices);
 								break;
 							}
 						}
@@ -307,7 +307,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 									deviceJObj.put(KEY_WIDGETS, newWidgetsJArr);
 									mDevices.remove(i);
 									mDevices.add(i, deviceJObj);
-									TapLock.storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), mDevices);
+									TapLock.storeDevices(this, getSharedPreferences(KEY_PREFS, MODE_PRIVATE), mDevices);
 									Log.d(TAG, "stored: " + deviceJObj.toString());
 								} catch (JSONException e) {
 									e.printStackTrace();
@@ -320,7 +320,7 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 							deviceJObj.put(KEY_WIDGETS, widgetsJArr);
 							mDevices.remove(i);
 							mDevices.add(i, deviceJObj);
-							TapLock.storeDevices(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), mDevices);
+							TapLock.storeDevices(this, getSharedPreferences(KEY_PREFS, MODE_PRIVATE), mDevices);
 						} catch (JSONException e) {
 							e.printStackTrace();
 						}

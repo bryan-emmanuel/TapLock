@@ -27,6 +27,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import android.app.backup.BackupManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -81,11 +82,13 @@ public class TapLock {
 		return new Intent(context, getPackageClass(context, cls));
 	}
 	
-	protected static void storeDevices(SharedPreferences sp, ArrayList<JSONObject> devicesArr) {
+	protected static void storeDevices(Context context, SharedPreferences sp, ArrayList<JSONObject> devicesArr) {
 		Set<String> devices = new HashSet<String>();
 		for (JSONObject deviceJObj : devicesArr)
 			devices.add(deviceJObj.toString());
 		sp.edit().putStringSet(KEY_DEVICES, devices).commit();
+		BackupManager bm = new BackupManager(context);
+		bm.dataChanged();
 	}
 
 	protected static String[] getDeviceNames(ArrayList<JSONObject> devices) {

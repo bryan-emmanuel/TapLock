@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
- * RemoteAuthClient
+ * TapLock
  * Copyright (C) 2012 Bryan Emmanuel
  * 
  * This program is free software: you can redistribute it and/or modify
@@ -36,7 +36,7 @@
 
     <application
         android:icon="@drawable/ic_launcher"
-        android:label="@string/app_name" >
+        android:label="@string/app_name" android:backupAgent="TapLockBackupAgentHelper">
         <activity
             android:name=".TapLockSettings"
             android:label="@string/app_name"
@@ -95,6 +95,8 @@
 		</receiver>
 		<activity android:name="com.google.ads.AdActivity"
 			android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|uiMode|screenSize|smallestScreenSize" />
+		<meta-data android:name="com.google.android.backup.api_key"
+    	android:value="AEdPqrEAAAAIBx324Wzo3_edYTx-5Qvq0Lcu9ZBtX2doW4H3Mg" />
     </application>
 
 </manifest>

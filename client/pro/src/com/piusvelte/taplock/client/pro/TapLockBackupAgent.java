@@ -17,7 +17,7 @@
  *  
  *  Bryan Emmanuel piusvelte@gmail.com
  */
-package com.piusvelte.taplock.client.adsupported;
+package com.piusvelte.taplock.client.pro;
 
-public class TapLockBackupAgentHelper extends com.piusvelte.taplock.client.core.TapLockBackupAgentHelper {
+public class TapLockBackupAgent extends com.piusvelte.taplock.client.core.TapLockBackupAgent {
 }

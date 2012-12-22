@@ -25,7 +25,7 @@ import android.app.backup.SharedPreferencesBackupHelper;
 import android.util.Log;
 
 @TargetApi(8)
-public class TapLockBackupAgentHelper extends BackupAgentHelper {
+public class TapLockBackupAgent extends BackupAgentHelper {
 	private static final String TAG = "TapLockBackupAgentHelper";
 
 	@Override

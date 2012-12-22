@@ -36,7 +36,7 @@
 
     <application
         android:icon="@drawable/ic_launcher"
-        android:label="@string/app_name" android:backupAgent="TapLockBackupAgentHelper">
+        android:label="@string/app_name" android:backupAgent="TapLockBackupAgent">
         <activity
             android:name=".TapLockSettings"
             android:label="@string/app_name"

@@ -22,6 +22,7 @@ package com.piusvelte.taplock.client.core;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_ADDRESS;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_NAME;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_PASSPHRASE;
+import static com.piusvelte.taplock.client.core.TapLock.KEY_VERSION;
 import static com.piusvelte.taplock.client.core.TapLock.KEY_WIDGETS;
 import static com.piusvelte.taplock.client.core.TapLock.EXTRA_DEVICE_ADDRESS;
 import static com.piusvelte.taplock.client.core.TapLock.EXTRA_DEVICE_NAME;
@@ -52,14 +53,15 @@ import org.json.JSONObject;
 
 import android.app.PendingIntent;
 import android.app.Service;
+import android.app.backup.BackupManager;
 import android.appwidget.AppWidgetManager;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
+import android.content.pm.PackageManager.NameNotFoundException;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.IBinder;
@@ -142,7 +144,18 @@ public class TapLockService extends Service implements OnSharedPreferenceChangeL
 	@Override
 	public void onCreate() {
 		super.onCreate();
-		onSharedPreferenceChanged(getSharedPreferences(KEY_PREFS, Context.MODE_PRIVATE), KEY_DEVICES);
+		int currVer = 0;
+		try {
+			currVer = getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
+		} catch (NameNotFoundException e) {
+			e.printStackTrace();
+		}
+		SharedPreferences sp = (SharedPreferences) getSharedPreferences(KEY_PREFS, MODE_PRIVATE);
+		if (!sp.contains(KEY_VERSION) || (currVer > sp.getInt(KEY_VERSION, 0))) {
+			sp.edit().putInt(KEY_VERSION, currVer).commit();
+			(new BackupManager(this)).dataChanged();
+		}
+		onSharedPreferenceChanged(getSharedPreferences(KEY_PREFS, MODE_PRIVATE), KEY_DEVICES);
 		mBtAdapter = BluetoothAdapter.getDefaultAdapter();
 	}
 

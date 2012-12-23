@@ -295,7 +295,7 @@ public class TapLockSettings extends ListActivity implements ServiceConnection, 
 			}
 			mInWriteMode = false;
 		} else {
-			SharedPreferences sp = getSharedPreferences(KEY_PREFS, Context.MODE_PRIVATE);
+			SharedPreferences sp = getSharedPreferences(KEY_PREFS, MODE_PRIVATE);
 			onSharedPreferenceChanged(sp, KEY_DEVICES);
 			// check if configuring a widget
 			if (intent != null) {

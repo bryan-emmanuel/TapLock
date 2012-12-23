@@ -132,7 +132,7 @@ public class TapLockToggle extends Activity implements ServiceConnection {
 		});
 		mProgressDialog.show();
 		mDevices.clear();
-		final SharedPreferences sp = getSharedPreferences(KEY_PREFS, Context.MODE_PRIVATE);
+		final SharedPreferences sp = getSharedPreferences(KEY_PREFS, MODE_PRIVATE);
 		Set<String> devices = sp.getStringSet(KEY_DEVICES, null);
 		if (devices != null) {
 			for (String device : devices) {

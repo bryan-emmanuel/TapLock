@@ -62,6 +62,7 @@ public class TapLock {
 	public static final String KEY_DEVICES = "devices";
 	public static final String KEY_PREFS = "taplock";
 	public static final String KEY_SERVER_VERSION = "serverversion";
+	public static final String KEY_VERSION = "version";
 	public static final int SERVER_VERSION = 2;
 	public static final String DEFAULT_PASSPHRASE = "TapLock";
 	
@@ -87,8 +88,7 @@ public class TapLock {
 		for (JSONObject deviceJObj : devicesArr)
 			devices.add(deviceJObj.toString());
 		sp.edit().putStringSet(KEY_DEVICES, devices).commit();
-		BackupManager bm = new BackupManager(context);
-		bm.dataChanged();
+		(new BackupManager(context)).dataChanged();
 	}
 
 	protected static String[] getDeviceNames(ArrayList<JSONObject> devices) {

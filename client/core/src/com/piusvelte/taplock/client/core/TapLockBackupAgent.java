@@ -22,15 +22,12 @@ package com.piusvelte.taplock.client.core;
 import android.annotation.TargetApi;
 import android.app.backup.BackupAgentHelper;
 import android.app.backup.SharedPreferencesBackupHelper;
-import android.util.Log;
 
 @TargetApi(8)
 public class TapLockBackupAgent extends BackupAgentHelper {
-	private static final String TAG = "TapLockBackupAgentHelper";
 
 	@Override
 	public void onCreate() {
-		Log.d(TAG, "onCreate");
 		SharedPreferencesBackupHelper spbh = new SharedPreferencesBackupHelper(this, TapLock.KEY_PREFS);
 		addHelper(TapLock.KEY_PREFS, spbh);
 	}

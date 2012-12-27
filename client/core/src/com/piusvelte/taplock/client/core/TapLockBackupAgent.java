@@ -28,7 +28,6 @@ public class TapLockBackupAgent extends BackupAgentHelper {
 
 	@Override
 	public void onCreate() {
-		SharedPreferencesBackupHelper spbh = new SharedPreferencesBackupHelper(this, TapLock.KEY_PREFS);
-		addHelper(TapLock.KEY_PREFS, spbh);
+		addHelper(TapLock.KEY_PREFS, new SharedPreferencesBackupHelper(this, TapLock.KEY_PREFS));
 	}
 }

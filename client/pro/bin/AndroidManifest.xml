@@ -17,13 +17,15 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *  
  *  Bryan Emmanuel piusvelte@gmail.com
- -->
+-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.piusvelte.taplock.client.pro"
     android:versionCode="18"
     android:versionName="1.8" >
 
-    <uses-sdk android:minSdkVersion="14" android:targetSdkVersion="16" />
+    <uses-sdk
+        android:minSdkVersion="14"
+        android:targetSdkVersion="16" />
 
     <uses-permission android:name="android.permission.NFC" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
@@ -33,66 +35,81 @@
     <uses-feature android:name="android.hardware.nfc" />
 
     <application
+        android:backupAgent="TapLockBackupAgent"
         android:icon="@drawable/ic_launcher"
-        android:label="@string/app_name" android:backupAgent="TapLockBackupAgent">
+        android:label="@string/app_name" >
         <activity
             android:name=".TapLockSettings"
             android:label="@string/app_name"
-            android:launchMode="singleTop">
+            android:launchMode="singleTop" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.nfc.action.TAG_DISCOVERED" />
+
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
         <activity
             android:name=".TapLockToggle"
             android:label="@string/app_name"
-            android:theme="@style/TapLockToggle">
+            android:theme="@style/TapLockToggle" >
             <intent-filter>
                 <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+
                 <category android:name="android.intent.category.DEFAULT" />
+
                 <data android:mimeType="text/plain" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="ancroid.intent.category.BROWSABLE" />
+
                 <data android:scheme="taplock" />
             </intent-filter>
         </activity>
         <activity
             android:name=".TapLockInfo"
             android:label="@string/app_name"
-            android:theme="@style/TapLockInfo">
+            android:theme="@style/TapLockInfo" >
         </activity>
+
         <service android:name=".TapLockService" />
-		<receiver android:name=".TapLockWidget" android:label="@string/app_name">
-			<intent-filter>
-				<action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-			</intent-filter>
-			<intent-filter>
-				<action android:name="com.piusvelte.taplock.ACTION_TOGGLE" />
-			</intent-filter>
-			<meta-data android:name="android.appwidget.provider"
-				android:resource="@xml/widget_1x1" />
-		</receiver>
-		<receiver android:name=".TapLockReceiver">
-		    <intent-filter>
-		        <action android:name="android.bluetooth.adapter.action.STATE_CHANGED" />
-		    </intent-filter>
-		    <intent-filter>
-		        <action android:name="android.bluetooth.device.action.FOUND" />
-		    </intent-filter>
-		    <intent-filter>
-		        <action android:name="android.bluetooth.adapter.action.DISCOVERY_FINISHED" />
-		    </intent-filter>
-		</receiver>
-		<meta-data android:name="com.google.android.backup.api_key"
-    	android:value="AEdPqrEAAAAIjYaFjeoYXSiDHmEsrd5OPcnIyx_avyPvVZdJVw" />
+
+        <receiver
+            android:name=".TapLockWidget"
+            android:label="@string/app_name" >
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.piusvelte.taplock.ACTION_TOGGLE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_1x1" />
+        </receiver>
+        <receiver android:name=".TapLockReceiver" >
+            <intent-filter>
+                <action android:name="android.bluetooth.adapter.action.STATE_CHANGED" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.FOUND" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.bluetooth.adapter.action.DISCOVERY_FINISHED" />
+            </intent-filter>
+        </receiver>
+
+        <meta-data
+            android:name="com.google.android.backup.api_key"
+            android:value="AEdPqrEAAAAIjYaFjeoYXSiDHmEsrd5OPcnIyx_avyPvVZdJVw" />
     </application>
 
 </manifest>

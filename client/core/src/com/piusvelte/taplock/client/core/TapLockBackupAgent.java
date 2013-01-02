@@ -25,9 +25,11 @@ import android.app.backup.SharedPreferencesBackupHelper;
 
 @TargetApi(8)
 public class TapLockBackupAgent extends BackupAgentHelper {
+	
+	private static final String Spreferences = "preferences";
 
 	@Override
 	public void onCreate() {
-		addHelper(TapLock.KEY_PREFS, new SharedPreferencesBackupHelper(this, TapLock.KEY_PREFS));
+		addHelper(Spreferences, new SharedPreferencesBackupHelper(this, TapLock.KEY_PREFS));
 	}
 }
